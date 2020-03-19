@@ -328,7 +328,7 @@ def video():
     qformat = QImage.Format_Indexed8
     
     console_print('Playing File: ' + str(filelist[0]))
-    bar1.setMaximum(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    bar1.setMaximum(cap.get(cv2.CAP_PROP_FRAME_COUNT)) #init bar size
     cap = cv2.VideoCapture(filelist[0])
     start= time.time()
     
@@ -444,8 +444,7 @@ def camera_view():
         
         frame = cv2.warpAffine(frame,M,(int(x2),int(y2)))  
         frame_crop = frame[rot_y:(rot_y+rot_height) , rot_x:(rot_x+rot_width)]  #img[y:y+h, x:x+w]
-        
-        
+
         if chk_box4.isChecked() and (capture_width+capture_height) > 0:
             cv2.putText(frame_crop, 'ROI', (roi_x + 10, roi_y + 30), font, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
             cv2.putText(frame_crop, 'Capture Size', (capture_x + 10, capture_y + 30), font, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
@@ -722,11 +721,14 @@ def save_data():
         out = cv2.VideoWriter(str(Path(str(cur_file)+suffix)), cv2.VideoWriter_fourcc(*'MJPG'), 25.0, (rot_width, rot_height), isColor=False)
     filename = Path(str(cur_file)+suffix)
     console_print('The saved file name = '+str(filename))
-    
+    capture_times = []
+    augment_times = []
+    contour_times = []
 
     while (no_cancel and count <= int(cam_field4.text())):
     
         count +=1
+        start = time.time() * 1000
         image_primary = cam.GetNextImage()
         frame = np.array(image_primary.GetNDArray())
         
@@ -740,14 +742,20 @@ def save_data():
         if angle == 0:
             frame_crop = frame
         out.write(frame_crop)
+        end = time.time() * 1000
+        capture_times.append(end-start)
 
+        start = time.time() * 1000
         frame_count = frame_crop[roi_y:(roi_y + int(roi_width*110/840)) , roi_x:(roi_x + roi_width)]
         frame_mask = mask.apply(frame_count)
         frame_mask = cv2.medianBlur(frame_mask,blur_value)
         frame_mask = cv2.threshold(frame_mask, 125, 255, cv2.THRESH_BINARY)[1]
-
+        end = time.time() * 1000
+        augment_times.append(end-start)
         # find contours
+        start = time.time() * 1000
         contours, hierarcy = cv2.findContours(frame_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
 
         # list of all the coordinates (tuples) of each cell
         coord_list = []
@@ -763,8 +771,10 @@ def save_data():
                 sum_ch1[ch_pos] += 1
             except:
                 #Undeclared variable?
-                error += 1
-        
+                # error += 1
+                print("error")
+        end = time.time() * 1000
+        contour_times.append(end-start)
         if FPS < 26 or (count%(int(FPS/5)) == 0):
 
             if chk_box4.isChecked() and (capture_width+capture_height) > 0:
@@ -795,7 +805,13 @@ def save_data():
         bar1.setValue(count)
 
 
-    out.release    
+    out.release
+    averaged_capture = np.mean(capture_times)
+    averaged_augment = np.mean(augment_times)
+    averaged_contour = np.mean(contour_times)
+    print("Average capture times: %f ms" % averaged_capture)
+    print("Averaged augment times: %f ms" % averaged_augment)
+    print("Averaged contour times: %f ms" % averaged_contour)
     cam.EndAcquisition()
     cv2.destroyAllWindows()
     print('FPS captured is =' , FPS)

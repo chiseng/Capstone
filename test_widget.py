@@ -111,16 +111,19 @@ class TestSetup:
         camera = self.get_camera()
         capture_dims, roi_dims = self.get_aspect(camera)
         roi_x, roi_y, roi_width, roi_height = roi_dims
-        camera.BeginAcquisition()
+        self.curfile = "test_avi"
+
         count = 0
         view_mode = 1
         save_mode = 0
         ch = 12
         sub_ch = []
         sum_ch1 = [0] * ch
+        camera.BeginAcquisition()
         camera.Init()
-        self.curfile = "test_avi"
-
+        image_primary = camera.GetNextImage()
+        frame = np.array(image_primary.GetNDArray())
+        frame_crop = frame[rot_y:(rot_y + rot_height), rot_x:(rot_x + rot_width)]  # img[y:y+h, x:x+w]
         ## assigning subchannels - sub_ch
         for x in range(ch + 1):
             sub_ch_x = round(x * (roi_width / (ch)))
@@ -128,7 +131,7 @@ class TestSetup:
 
 
         camera.EndAcquisition()
-        pass
+        return None
 
     def save_npy(self):
         return
@@ -163,7 +166,7 @@ class TestSetup:
 
         save_avi_btn = ("QPushButton { background-color: rgb(25,120,250); font: bold 12px;}"
                     "QPushButton { border-color: rgb(40,40,15); border-width: 2px; }"
-                    "QPushButton { border-style: inset; border-radius: 4px; padding: 10px; }"
+                    "QPushButton { border-style: inset; border-radius: 4px; padding: 10px;}"
                     "QPushButton:pressed { background-color: rgb(25,120,200) }")
 
         btn1 = QPushButton('Video'); btn1.setStyleSheet(cam_btn)
