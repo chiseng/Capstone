@@ -164,7 +164,6 @@ def camera_start():
     global got_camera, cam, cam_list
 
     if got_camera == True: return
-    start_time = time.time()
     ## --- Setup Camera --- ##
     # [GET] system
     system = PySpin.System.GetInstance()
@@ -380,15 +379,12 @@ def camera_view():
     global no_cancel, got_camera, frame, angle
     global view_mode, save_mode
     global rot_x, rot_y, rot_width, rot_height
-    start_time = time.time()
     # [GET] camera list
     cam_list = system.GetCameras()
     print(cam_list)
     num_cameras = cam_list.GetSize()
     print('num cams',num_cameras)
     camera_start()
-    end_time = time.time()
-    print("Benchmark:",end_time - start_time)
     if got_camera == True and num_cameras == 0:
         print('trouble')
         console_print('The camera was disconnected')
@@ -728,10 +724,10 @@ def save_data():
     while (no_cancel and count <= int(cam_field4.text())):
     
         count +=1
-        start = time.time() * 1000
+
         image_primary = cam.GetNextImage()
         frame = np.array(image_primary.GetNDArray())
-        
+        start = time.time() * 1000
         if chk_box2.isChecked():
             frame = cv2.flip(frame, -1)
 
