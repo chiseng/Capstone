@@ -10,7 +10,7 @@ def capture_video(exposure, gain, blur_value, fps, duration, avi=True):
     system = PySpin.System.GetInstance()
 
     # get camera list
-    cam_list = system.GetCameras()
+    cam_list : PySpin.CameraList = system.GetCameras()
     # use primary camera
     cam: PySpin.CameraPtr = cam_list.GetByIndex(0)
 
