@@ -200,6 +200,9 @@ def main(test_npy=False):
     error = 0
     contour_detection = {}
     blur_bgsub = {}
+    median_blur = []
+    bgsub = []
+    thresh = []
     # run count
     while cap.isOpened():
 
@@ -211,9 +214,18 @@ def main(test_npy=False):
         augment_start = time.time()
         pic = pic[y1:(y1 + H), x1:x2]
         # crop = bgSubtract(mask,pic)
+        bg = time.time()
         crop = mask.apply(pic)
+        bg_stop = time.time()
+        bgsub.append(bg_stop-bg)
+        blur = time.time()
         crop = cv2.medianBlur(crop, blur_value)
+        blur_stop = time.time()
+        median_blur.append(blur_stop-blur)
+        threshh = time.time()
         crop = cv2.threshold(crop, 125, 255, cv2.THRESH_BINARY)[1]
+        thresh_stop = time.time()
+        thresh.append(thresh_stop-threshh)
         augment_end = time.time()
         blur_bgsub[count] = augment_end*1000.0 - augment_start*1000.0
 
@@ -221,7 +233,7 @@ def main(test_npy=False):
         Contour Detection
         '''
         count_start = time.time()
-        image, contours, hierarchy = cv2.findContours(crop, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        contours, hierarchy = cv2.findContours(crop, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         # list of all the coordinates (tuples) of each cell
         coord_list = []
         # print(contours)
@@ -254,12 +266,17 @@ def main(test_npy=False):
     detect_benchmark = end - start
     print("Time taken for counting:",detect_benchmark)
 
-    print("contour detection:",contour_detection)
-    print("augment:", blur_bgsub)
+    # print("contour detection:",contour_detection)
+    # print("augment:", blur_bgsub)
     cap.release()
     cv2.destroyAllWindows()
-    bench_plot(blur_bgsub, contour_detection)
+    # bench_plot(blur_bgsub, contour_detection)
+    print("Augmentation time:", np.mean(list(blur_bgsub.values())))
+    print("Detection time:", np.mean(list(contour_detection.values())))
 
+    print("Background subtract time:",np.mean(bgsub))
+    print("Median Blur subtract time:", np.mean(median_blur))
+    print("Threshold subtract time:", np.mean(thresh))
     # set an array of sub channel dimension
     print('[RESULTS] for RUN', (cur + 1), 'is ', sum_ch1)
     print('[ERROR] Count is: ', error)

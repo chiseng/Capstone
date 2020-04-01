@@ -1,0 +1,22 @@
+Please select the region of interest (ROI)
+
+***** PROCESSING ROI for RUN 1 ***** File: Raw Video Output 10x Inv-L.avi
+total number of ROI :1
+
+***** PROCESSING RUN 1 ***** File: Raw Video Output 10x Inv-L.avi
+[ROI] (x , y, width, height) is [11, 7, 934, 273]
+11 945 7 280
+(352, 960, 3)
+Time taken for counting: 7.551872253417969
+Augmentation time: 7.708091568772811
+Detection time: 0.24429388115875914
+Background subtract time: 0.0026494360318149095
+Median Blur subtract time: 0.00497107088130756
+Threshold subtract time: 8.758315204703895e-05
+[RESULTS] for RUN 1 is  [ 0. 22. 91. 15.  1.  0.  0.  0.  0.  0.  0.  0.  1.  1.  1.  5.  0.  1.
+  0.  0.  0.  0.  0.  0.  0.  0.  0.  0.]
+[ERROR] Count is:  0
+[INFO] elasped time: 7.55
+[INFO] approx. FPS: 18.14
+[INFO] Each cycle time taken = 0.00569s
+----------------------------------------------------------------------

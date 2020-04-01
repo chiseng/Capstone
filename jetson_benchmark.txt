@@ -1,0 +1,26 @@
+Please select the region of interest (ROI)
+
+Select a ROI and then press SPACE or ENTER button!
+Cancel the selection process by pressing c button!
+QStandardPaths: XDG_RUNTIME_DIR not set, defaulting to '/tmp/runtime-root'
+***** PROCESSING ROI for RUN 1 ***** File: Raw Video Output 10x Inv-L.avi
+total number of ROI :1
+
+***** PROCESSING RUN 1 ***** File: Raw Video Output 10x Inv-L.avi
+[ROI] (x , y, width, height) is [10, 6, 938, 227]
+10 948 6 233
+(352, 960, 3)
+Time taken for counting: 9.240577459335327
+Augmentation time: 17.094808536724454
+Detection time: 0.44847741788321166
+Background subtract time: 0.006049427672894332
+Median Blur subtract time: 0.010888191905334918
+Threshold subtract time: 0.00013009127039108833
+[RESULTS] for RUN 1 is  [ 0. 30. 93. 13.  1.  0.  0.  0.  0.  0.  0.  0.  2.  1.  1.  5.  1.  0.
+  0.  0.  0.  0.  0.  0.  0.  0.  0.  0.]
+[ERROR] Count is:  0
+[INFO] elasped time: 9.24
+[INFO] approx. FPS: 14.83
+[INFO] Each cycle time taken = 0.02750s
+----------------------------------------------------------------------
+

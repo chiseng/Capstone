@@ -10,7 +10,7 @@ def capture_video(exposure, gain, blur_value, fps, duration, avi=True):
     system = PySpin.System.GetInstance()
 
     # get camera list
-    cam_list = system.GetCameras()
+    cam_list : PySpin.CameraList = system.GetCameras()
     # use primary camera
     cam: PySpin.CameraPtr = cam_list.GetByIndex(0)
 
@@ -25,7 +25,7 @@ def capture_video(exposure, gain, blur_value, fps, duration, avi=True):
     cam.ExposureAuto.SetValue(PySpin.ExposureAuto_Off)
 
     # Ensure desired exposure time does not exceed the maximum
-    exposure_time_to_set = exposure   #in us
+    exposure_time_to_set = exposure  # in us
     exposure_time_to_set = min(cam.ExposureTime.GetMax(), exposure_time_to_set)
     cam.ExposureTime.SetValue(exposure_time_to_set)
 
@@ -55,12 +55,19 @@ def capture_video(exposure, gain, blur_value, fps, duration, avi=True):
     sel = cv2.selectROI(roi_image)
     roi_x, roi_y, roi_width, roi_height = sel
     cv2.destroyAllWindows()
-    print("ROI vairables:\n x %i\n y %i\n width %i\n height %i\n" % (roi_x, roi_y, roi_width, roi_height))
+    print(
+        "ROI vairables:\n x %i\n y %i\n width %i\n height %i\n"
+        % (roi_x, roi_y, roi_width, roi_height)
+    )
     cam.EndAcquisition()
     cam.BeginAcquisition()
-    out = cv2.VideoWriter("testavi.avi", 0x00000000, 25.0, (roi_width, roi_height), isColor=False)
+    out = cv2.VideoWriter(
+        "testavi.avi", 0x00000000, 25.0, (roi_width, roi_height), isColor=False
+    )
 
-    buf = np.empty((fps * duration, roi_height, roi_width), np.dtype('uint8')) #in the original image we need a dimension at index -1 as 3.
+    buf = np.empty(
+        (fps * duration, roi_height, roi_width), np.dtype("uint8")
+    )  # in the original image we need a dimension at index -1 as 3.
     start_time = time.time()
     fc = 0
     while True:
@@ -72,14 +79,14 @@ def capture_video(exposure, gain, blur_value, fps, duration, avi=True):
             # Pixel array
             image_frame = np.array(image_primary.GetNDArray())
             frame = np.array(image_primary.GetNDArray())
-            cropped = frame[roi_y:(roi_y + roi_height), roi_x:(roi_x + roi_width)]
-            buf[fc-1] = cropped
+            cropped = frame[roi_y : (roi_y + roi_height), roi_x : (roi_x + roi_width)]
+            buf[fc - 1] = cropped
             fc += 1
             # cv2.putText(image_frame, str(value), (100, 50), font, 1, (0, 255, 0), 1, cv2.LINE_AA)
-            cv2.imshow('livestream', image_frame)
+            cv2.imshow("livestream", image_frame)
             cv2.waitKey(1)
 
-            if int(time.time() - start_time) == duration  :
+            if int(time.time() - start_time) == duration:
                 if avi:
                     start = time.time()
                     for frame in buf:
@@ -97,10 +104,11 @@ def capture_video(exposure, gain, blur_value, fps, duration, avi=True):
                 break
         except Exception as e:
             print(e)
-            print('Video ending...')
+            print("Video ending...")
             cv2.destroyAllWindows()
             cam.EndAcquisition()
     return
+
 
 def main():
     Capture_FPS = 25  # Capture FPS used for show and test
@@ -111,7 +119,6 @@ def main():
     blur_value = 7
     capture_video(exposure, gain, blur_value, Capture_FPS, duration)
 
+
 if __name__ == "__main__":
     main()
-
-
