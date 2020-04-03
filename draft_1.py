@@ -9,7 +9,6 @@ from imutils.video import FPS
 # from tkinter.filedialog import askopenfilenames
 # from tkinter.filedialog import asksaveasfilename
 from pandas import DataFrame
-
 ### ----- Parameters to Change ----- ###
 H = 140  # No. of pixels to select for height of Region Of Interest
 blur_value = 7  # value = 3,5 or 7 (ODD).median Blur value determines the accuracy of detection
@@ -44,17 +43,25 @@ def get_roi(image, roi_arr):
 
 
 
-def to_crop(frame, r, Channels):
+# def to_crop(frame, r, Channels):
+def to_crop(frame, Channels):
     ch = Channels
     #x,y represents the coordinates of the upper most corner of the rectangle
-    print('[ROI] (x , y, width, height) is', r)
+    # print('[ROI] (x , y, width, height) is', r)
 
     # Crop image
-    y1 = int(r[1])  # y
-    y2 = int(r[1] + r[3])  # y + height = height of cropped
-    x1 = int(r[0])  # x
-    x2 = int(r[0] + r[2])  # x + width = width of cropped
+    # y1 = int(r[1])  # y
+    # y2 = int(r[1] + r[3])  # y + height = height of cropped
+    # x1 = int(r[0])  # x
+    # x2 = int(r[0] + r[2])  # x + width = width of cropped
 
+    #hardcoding parameters
+    y1 = 5
+    y2 = 239 + 5
+    x1 = 14
+    x2 = 926 + 14
+
+    r = [14,5,926,239]
     print(x1, x2, y1, y2)
     imCrop = frame[y1:(y1 + H), x1:x2]
     print(frame.shape)
@@ -98,12 +105,12 @@ def npy_detect(npy_file, channels=25):
     video_frames = np.load(npy_file)
     sub_ch = [round(x * (r[2] / (channels))) for x in range(channels + 1)]
     y1 = int(r[1])  # y
-    y2 = int(r[1] + r[3])  # y + height = height of cropped
+    y2 = int(r[1] + 140)  # y + height = height of cropped
     x1 = int(r[0])  # x
     x2 = int(r[0] + r[2])  # x + width = width of cropped
 
     for frame in video_frames:
-        pic = frame[y1:(y1 + H), x1:x2]
+        pic = frame[y1:(y2), x1:x2]
         # crop = bgSubtract(mask,pic)
 
         mask = cv2.createBackgroundSubtractorMOG2(history=3,
@@ -164,9 +171,9 @@ def main(test_npy=False):
     ret, image = cap.read()
     if not ret:
         return "File error, please check if file is in directory"
-    frame, roi_sel = get_roi(image, [])
+    # frame, roi_sel = get_roi(image, [])
     print('***** PROCESSING ROI for RUN 1 ***** File: %s' % file_name)
-    print('total number of ROI :%i\n' % len(roi_sel))
+    # print('total number of ROI :%i\n' % len(roi_sel))
 
     '''
     Get crop size and draw lines
@@ -174,14 +181,15 @@ def main(test_npy=False):
     print('***** PROCESSING RUN 1 ***** File: %s' % file_name)
     # # Read image start image
     # ret, frame = cap.read()
-
+    # roi_sel = []
     cur = 0
-    r = roi_sel[cur]
-    prep_crop, x1, x2, y1, y2, sub_ch = to_crop(frame, r, Channels)
+    # r = roi_sel[cur]
+    # prep_crop, x1, x2, y1, y2, sub_ch = to_crop(frame, r, Channels)
+    prep_crop, x1, x2, y1, y2, sub_ch = to_crop(image, Channels)
 
-    cv2.namedWindow('Cropped Image', cv2.WINDOW_NORMAL)
-    cv2.imshow('Cropped Image', prep_crop)
-    cv2.waitKey(Delay)
+    # cv2.namedWindow('Cropped Image', cv2.WINDOW_NORMAL)
+    # cv2.imshow('Cropped Image', prep_crop)
+    # cv2.waitKey(Delay)
 
     '''
     Background Subtract
@@ -229,6 +237,9 @@ def main(test_npy=False):
         augment_end = time.time()
         blur_bgsub[count] = augment_end*1000.0 - augment_start*1000.0
 
+        # cv2.imshow('frame', crop)
+        # cv2.waitKey(Delay)
+
         '''
         Contour Detection
         '''
@@ -242,7 +253,7 @@ def main(test_npy=False):
             avg = np.mean(contours[i], axis=0)
             coord = (int(avg[0][0]), int(avg[0][1]))  ##Coord is (y,x)
             if Show == 1:
-                cv2.circle(pic, coord, 10, (255, 0, 255), 1)
+                cv2.circle(crop, coord, 10, (255, 0, 255), 1)
             ch_pos = int(math.floor((coord[0]) / sub_ch[1]))
             try:
                 sum_ch1[ch_pos] += 1
@@ -252,11 +263,11 @@ def main(test_npy=False):
         contour_detection[count] = count_end*1000.0 - count_start*1000.0
 
         # show the counting
-        if Show == 1 and count % Skip_frames == 0:
-            cv2.namedWindow('frame', cv2.WINDOW_NORMAL)
-            cv2.imshow('frame', pic)
-            # set the time delay to 1 ms so that the thread is freed up to do the processing we want to do.
-            cv2.waitKey(Delay)
+        # if Show == 1 and count % Skip_frames == 0:
+        #         cv2.namedWindow('frame', cv2.WINDOW_NORMAL)
+        #         cv2.imshow('frame', crop)
+        #         # set the time delay to 1 ms so that the thread is freed up to do the processing we want to do.
+        #         cv2.waitKey(Delay)
 
         fps.update()
         cycle_end = time.clock()
