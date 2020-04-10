@@ -1,100 +1,21 @@
 import pathlib
-import time
-from queue import Queue
-from threading import Thread
 from timeit import default_timer
 
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 from imutils.video import FileVideoStream
-from numba import cuda
+from numba.decorators import jit
 
-import video_stream
+import cuda_video_stream
 
 """
 TESTS: 
 
 Normal loading, fast loading.
-cv2 bgsubtract, averaging bgsubtract, cuda bgsubtract, numba bgsubtract
+cv2 bgsubtract, cv2 with cuda bgsubtract, numba bgsubtract
 
 """
-
-
-class video_queue:
-    """
-    Video input queue
-
-    based on this implementation:
-    https://github.com/jrosebr1/imutils/blob/master/imutils/video/filevideostream.py
-    by Adrian Rosebrock released under MIT license
-    """
-
-    def __init__(self, file: str, queue_size: int = 500):
-        """
-
-
-        """
-        self.stream = cv2.VideoCapture(file)
-        self.stopped = False
-        self.Queue = Queue(maxsize=queue_size)
-        self.thread = Thread(target=self.update, args=())
-        self.thread.daemon = True
-
-    def start(self):
-        """
-
-        """
-        self.thread.start()
-        return self
-
-    def update(self):
-        """
-
-        """
-        while True:
-            if self.stopped:
-                break
-
-            if not self.Queue.full():
-                ret, frame = self.stream.read()
-                if not ret:
-                    self.stopped = True
-                    break
-                frame = cv2.cuda_GpuMat(frame)
-                self.Queue.put(frame)
-            else:
-                time.sleep(0.1)
-        self.stream.release()
-
-    def read(self):
-        """
-
-        """
-        return self.Queue.get()
-
-    def running(self):
-        """
-
-        """
-        return self.more() or not self.stopped
-
-    def more(self):
-        """
-
-        """
-        tries = 0
-        while self.Queue.qsize() == 0 and not self.stopped and tries < 20:
-            time.sleep(0.1)
-            tries += 1
-
-        return self.Queue.qsize() > 0
-
-    def stop(self):
-        """
-
-        """
-        self.stopped = True
-        self.thread.join()
 
 
 class Timer(object):
@@ -114,82 +35,123 @@ class Timer(object):
         print("elapsed time: %f s" % self.elapsed)
 
 
-def read_video(path_video: str) -> np.ndarray:
-    assert pathlib.Path(path_video).exists()
+def read_video(stream) -> np.ndarray:
+    # assert pathlib.Path(path_video).exists()
 
     buf = []
-    video_stream = FileVideoStream(path_video).start()
-    while video_stream.read() is not None:
-        frame = video_stream.read()
+    while stream.read() is not None:
+        frame = stream.read()
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         buf.append(frame)
+    stream.stop()
     return buf
-
-
-def read_video_cuda(path_video: str):
-    buf = []
-    stream = video_stream.video_queue(path_video).start()
-    while stream.more():
-        frame = stream.read()
-
-        buf.append(frame)
-    return buf
-
-
-def fast_bgsub_thread(filepath):
-    video_stream = FileVideoStream(filepath).start()
-    stacked = []
-    while video_stream.read() is not None:
-        frame = video_stream.read()
-        # stacked[count] = frame
-        # frame = imutils.resize(frame, width=450)
-        # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        # frame = np.dstack([frame, frame, frame])
-        stacked.append(frame)
-
-    return stacked
 
 
 #
-def normal_bgsub(filepath) -> np.ndarray:
-    with Timer("normal_bgsub"):
-        frames = read_video(filepath)
-        # print(frames[0])
-        # final_frames = []
-        mask: cv2.createBackgroundSubtractorMOG2 = cv2.createBackgroundSubtractorMOG2(
-            history=3, varThreshold=100, detectShadows=False
-        )
-        return np.stack([mask.apply(frame) for frame in frames])
+def normal_bgsub(video_stream) -> np.ndarray:
+
+    frames = read_video(video_stream)
+    mask: cv2.createBackgroundSubtractorMOG2 = cv2.createBackgroundSubtractorMOG2(
+        history=3, varThreshold=100, detectShadows=False
+    )
+    return np.stack([mask.apply(frame) for frame in frames])
 
 
-def cuda_bgsub(filepath) -> np.ndarray:
-    # frames = read_video_cuda(filepath)
+def cuda_bgsub(get_frames) -> np.ndarray:
     stream = cv2.cuda_Stream()
 
     # cv2.createB
     mask: cv2.cuda.createBackgroundSubtractorMOG2 = cv2.cuda.createBackgroundSubtractorMOG2(
         history=3, varThreshold=100, detectShadows=False
     )
-    get_frames = video_queue(filepath).start()
-    post_process = []
-    with Timer("cuda_bgsub"):
-        while get_frames.more():
-            frame = get_frames.read()
-            processed = mask.apply(frame, -1, stream)
-            post_process.append(processed)
-    return processed
 
-@cuda.jit
-def numba_bgsub(filepath):
-    #implement custom background subtract with numba
-    pass
+    post_process = []
+
+    while get_frames.more():
+        frame = get_frames.read()
+        processed = mask.apply(frame, -1, stream)
+        post_process.append(processed)
+    return post_process
+
+
+@jit(nopython=True)
+def numba_bgsub(frames, threshold):
+
+    """
+    Since numba works better with more verbose implemenation of methods,
+    we expand out the calculation of mean values with mutliple for loops.
+    """
+    # find sum of all the pixels [c,w,h]
+
+    len_frames = frames.shape[0]
+    h = frames.shape[1]
+    w = frames.shape[2]
+    c = frames.shape[3]
+    avg_frame = np.zeros((h, w, c))
+    for i in range(len_frames):
+        for j in range(h):
+            for k in range(w):
+                for l in range(c):
+                    avg_frame[j, k, l] += frames[i][j, k, l]
+
+    for j in range(h):
+        for k in range(w):
+            for l in range(c):
+                avg_frame[j, k, l] /= len_frames
+
+    for i in range(len_frames):
+        for j in range(h):
+            for k in range(w):
+                for l in range(c):
+                    frames[i][j, k, l] = np.abs(frames[i][j, k, l] - avg_frame[j, k, l])
+
+    diff_mean = np.zeros((len_frames, h, w))
+    for i in range(len_frames):
+        for j in range(h):
+            for k in range(w):
+                interm = 0
+                for l in range(c):
+                    interm += frames[i][j, k, l]
+                diff_mean[i, j, k] = interm / float(c)
+
+    mask = (diff_mean > threshold).astype(np.uint8)
+
+    return mask
+
+
+def numba_test(video: str):
+    frames = read_video(video)
+    output = numba_bgsub(np.stack(frames), 100)
+    # print(output)
+    return output
+
+
+def write_frames(frames: np.ndarray, cv2=False) -> None:
+    root = pathlib.Path("output_norm")
+    if not root.exists():
+        root.mkdir()
+    for i, f in enumerate(frames):
+        plt.imsave(str(root / f"{i}.jpg"), f)
+
 
 def main():
     filepath = "Raw Video Output 10x Inv-L.avi"
+    #Load frames into memory
+    get_frames = cuda_video_stream.video_queue(filepath).start()
+    get_frames.stop()
+    get_frames = cuda_video_stream.video_queue(filepath).start()
+    stream = FileVideoStream(filepath).start()
+    stream.stop()
+    stream = FileVideoStream(filepath).start()
 
-    normal_bgsub(filepath)
-
-    cuda_bgsub(filepath)
+    #Benchmark tests
+    with Timer("OpenCV"):
+        output1 = normal_bgsub(stream)
+    with Timer("OpenCV with CUDA"):
+        output2 = cuda_bgsub(get_frames)
+    stream = FileVideoStream(filepath).start()
+    with Timer("Numba test"):
+       output = numba_test(stream)
 
 
 if __name__ == "__main__":

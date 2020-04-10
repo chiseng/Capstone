@@ -178,10 +178,10 @@ def main(test_npy=False):
     cur = 0
     r = roi_sel[cur]
     prep_crop, x1, x2, y1, y2, sub_ch = to_crop(frame, r, Channels)
-
-    cv2.namedWindow('Cropped Image', cv2.WINDOW_NORMAL)
-    cv2.imshow('Cropped Image', prep_crop)
-    cv2.waitKey(Delay)
+    #
+    # cv2.namedWindow('Cropped Image', cv2.WINDOW_NORMAL)
+    # cv2.imshow('Cropped Image', prep_crop)
+    # cv2.waitKey(Delay)
 
     '''
     Background Subtract

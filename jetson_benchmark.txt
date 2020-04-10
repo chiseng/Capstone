@@ -13,9 +13,9 @@ total number of ROI :1
 Time taken for counting: 9.240577459335327
 Augmentation time: 17.094808536724454
 Detection time: 0.44847741788321166
-Background subtract time: 0.006049427672894332
-Median Blur subtract time: 0.010888191905334918
-Threshold subtract time: 0.00013009127039108833
+Background time: 0.006049427672894332
+Median Blur time: 0.010888191905334918
+Threshold time: 0.00013009127039108833
 [RESULTS] for RUN 1 is  [ 0. 30. 93. 13.  1.  0.  0.  0.  0.  0.  0.  0.  2.  1.  1.  5.  1.  0.
   0.  0.  0.  0.  0.  0.  0.  0.  0.  0.]
 [ERROR] Count is:  0

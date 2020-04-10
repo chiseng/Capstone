@@ -1,23 +1,22 @@
-from PyQt5 import QtGui  # (the example applies equally well to PySide)
-from PyQt5.QtGui import QImage, QPixmap, QPicture, QTransform
-from PyQt5.QtWidgets import QCheckBox, QMessageBox, QTabWidget, QComboBox
-from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout
-from PyQt5.QtWidgets import QGroupBox, QDialog, QVBoxLayout, QGridLayout
-from PyQt5.QtWidgets import QLabel, QLineEdit, QListWidget, QProgressBar
-from PyQt5.QtWidgets import QListWidget, QSlider
-from PyQt5.QtCore import Qt
+import math
+import os
+import time
+from datetime import datetime
+from pathlib import Path
+
 import PySpin
-import pyqtgraph as pg
-import pyqtgraph as ptime
 import cv2
 import numpy as np
-import time
-import math
-from datetime import datetime
-import os
-from pathlib import Path
+import pyqtgraph as pg
+from PyQt5 import QtGui  # (the example applies equally well to PySide)
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QImage, QPixmap, QTransform
+from PyQt5.QtWidgets import QApplication, QWidget, QPushButton
+from PyQt5.QtWidgets import QCheckBox, QMessageBox, QTabWidget, QComboBox
+from PyQt5.QtWidgets import QGroupBox, QGridLayout
+from PyQt5.QtWidgets import QLabel, QLineEdit, QProgressBar
+from PyQt5.QtWidgets import QListWidget, QSlider
 from pandas import DataFrame
-import csv
 
 ### ----- Parameters to Change ----- ###
 win_length = 1375  #Divisible by 6 as the ratio of panel to view window is 1:5
@@ -81,6 +80,21 @@ cwDir = os.getcwd()
 Global parameters used, making classes or setter/getter would be better
 '''
 ### ----- Parameters to Change ----- ###
+class Timer:
+    def __init__(self, function):
+        self.function = function
+
+    def __enter__(self):
+        self.start = time.time()
+
+    def get_printout(self, message: str) -> str:
+        return str({self.__class__.__name__: (self.label, message)})
+
+    def __exit__(self):
+        self.end = time.time()
+        duration = self.end - self.start
+        print(self.get_printout(f"{duration} s"))
+
 def reset_parameters():
     global FPS, exposure_time, num_frames, gain, width, height
     FPS = 25
@@ -720,7 +734,7 @@ def save_data():
     capture_times = []
     augment_times = []
     contour_times = []
-
+    fps_cap = time.time()
     while (no_cancel and count <= int(cam_field4.text())):
     
         count +=1
@@ -799,15 +813,17 @@ def save_data():
             
         image_primary.Release()
         bar1.setValue(count)
+    fps_rel = time.time()
 
+    print(f"FPS for process: {(fps_rel - fps_cap)/float(count)}")
 
     out.release
     averaged_capture = np.mean(capture_times)
     averaged_augment = np.mean(augment_times)
     averaged_contour = np.mean(contour_times)
-    print("Average capture times: %f ms" % averaged_capture)
-    print("Averaged augment times: %f ms" % averaged_augment)
-    print("Averaged contour times: %f ms" % averaged_contour)
+    print("Average conversion time: %f ms" % averaged_capture)
+    print("Averaged augment time: %f ms" % averaged_augment)
+    print("Averaged detection time: %f ms" % averaged_contour)
     cam.EndAcquisition()
     cv2.destroyAllWindows()
     print('FPS captured is =' , FPS)
