@@ -765,8 +765,6 @@ def save_data():
         # find contours
         start = time.time() * 1000
         contours, hierarcy = cv2.findContours(frame_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-
         # list of all the coordinates (tuples) of each cell
         coord_list = []
 
@@ -817,7 +815,7 @@ def save_data():
 
     print(f"FPS for process: {(fps_rel - fps_cap)/float(count)}")
 
-    out.release
+    out.release()
     averaged_capture = np.mean(capture_times)
     averaged_augment = np.mean(augment_times)
     averaged_contour = np.mean(contour_times)
