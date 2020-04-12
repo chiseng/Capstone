@@ -165,9 +165,7 @@ def main(test_npy=False):
     stream = cv2.cuda_Stream()
     cap = FileVideoStream(file_name).start()
     image = cap.read()
-    frame, roi_sel = get_roi(image, [])
     print('***** PROCESSING ROI for RUN 1 ***** File: %s' % file_name)
-    print('total number of ROI :%i\n' % len(roi_sel))
     cap.stop()
     '''
     Get crop size and draw lines
@@ -176,9 +174,8 @@ def main(test_npy=False):
     # # Read image start image
     # ret, frame = cap.read()
 
-    cur = 0
-    r = roi_sel[cur]
-    prep_crop, x1, x2, y1, y2, sub_ch = to_crop(frame, r, Channels)
+    r = [0, 0, 934, 239]
+    prep_crop, x1, x2, y1, y2, sub_ch = to_crop(image, r, Channels)
     #
     # cv2.namedWindow('Cropped Image', cv2.WINDOW_NORMAL)
     # cv2.imshow('Cropped Image', prep_crop)
@@ -187,6 +184,7 @@ def main(test_npy=False):
     '''
     Background Subtract
     '''
+    threshold_mat = cv2.cuda_GpuMat()
     count = 0
     spot_all = []
     mask:cv2.cuda.createBackgroundSubtractorMOG2 = cv2.cuda.createBackgroundSubtractorMOG2(history=3,
@@ -210,13 +208,14 @@ def main(test_npy=False):
     while gpu_read.more():
         #load frames to memory
         count += 1
+        frame = gpu_read.read()
         # print(count)
     gpu_read.stop()
     gpu_read = cvs.video_queue(file_name, y1, H, x1, x2).start()
     while gpu_read.more():
-        cycle_start = time.clock()
+        cycle_start = time.time()
+        frame = gpu_read.read()
         augment_start = time.time()
-
         # crop = bgSubtract(mask,pic)
         blur = time.time()
         filter.apply(frame)
@@ -227,9 +226,8 @@ def main(test_npy=False):
         aug_frame = mask.apply(frame, -1, stream)
         bg_stop = time.time()
         bgsub.append(bg_stop - bg)
-
         threshh = time.time()
-        crop = cv2.threshold(aug_frame, 125, 255, cv2.THRESH_BINARY)[1]
+        crop = cv2.cuda.threshold(aug_frame, 125, 255, cv2.THRESH_BINARY,dst=threshold_mat,stream=stream)[1]
         thresh_stop = time.time()
         thresh.append(thresh_stop-threshh)
         augment_end = time.time()
@@ -238,6 +236,7 @@ def main(test_npy=False):
         '''
         Contour Detection
         '''
+        crop = crop.download()
         count_start = time.time()
         contours, hierarchy = cv2.findContours(crop, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         # list of all the coordinates (tuples) of each cell
@@ -247,8 +246,6 @@ def main(test_npy=False):
         for i in range(len(contours)):
             avg = np.mean(contours[i], axis=0)
             coord = (int(avg[0][0]), int(avg[0][1]))  ##Coord is (y,x)
-            if Show == 1:
-                cv2.circle(pic, coord, 10, (255, 0, 255), 1)
             ch_pos = int(math.floor((coord[0]) / sub_ch[1]))
             try:
                 sum_ch1[ch_pos] += 1
@@ -257,15 +254,8 @@ def main(test_npy=False):
         count_end = time.time()
         contour_detection[count] = count_end*1000.0 - count_start*1000.0
 
-        # show the counting
-        if Show == 1 and count % Skip_frames == 0:
-            cv2.namedWindow('frame', cv2.WINDOW_NORMAL)
-            cv2.imshow('frame', pic)
-            # set the time delay to 1 ms so that the thread is freed up to do the processing we want to do.
-            cv2.waitKey(Delay)
-
         fps.update()
-        cycle_end = time.clock()
+        cycle_end = time.time()
 
     end = time.time()
     fps.stop()
@@ -274,8 +264,7 @@ def main(test_npy=False):
 
     # print("contour detection:",contour_detection)
     # print("augment:", blur_bgsub)
-    cap.release()
-    cv2.destroyAllWindows()
+    # cv2.destroyAllWindows()
     # bench_plot(blur_bgsub, contour_detection)
     print("Augmentation time:", np.mean(list(blur_bgsub.values())))
     print("Detection time:", np.mean(list(contour_detection.values())))
@@ -284,7 +273,7 @@ def main(test_npy=False):
     print("Median Blur subtract time:", np.mean(median_blur))
     print("Threshold subtract time:", np.mean(thresh))
     # set an array of sub channel dimension
-    print('[RESULTS] for RUN', (cur + 1), 'is ', sum_ch1)
+    print('[RESULTS] for RUN is ', sum_ch1)
     print('[ERROR] Count is: ', error)
 
     # stop the timer and display FPS information
@@ -293,7 +282,6 @@ def main(test_npy=False):
     print('[INFO] Each cycle time taken = %0.5fs' % (cycle_end - cycle_start))
     print('----------------------------------------------------------------------')
 
-    cap.release()
     cv2.destroyAllWindows()
 
     if test_npy:
