@@ -5,13 +5,10 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 from imutils.video import FPS
-from imutils.video import FileVideoStream
 # import tkinter as tk
 # from tkinter.filedialog import askopenfilenames
 # from tkinter.filedialog import asksaveasfilename
 from pandas import DataFrame
-
-import cuda_video_stream as cvs
 
 ### ----- Parameters to Change ----- ###
 H = 140  # No. of pixels to select for height of Region Of Interest
@@ -47,17 +44,25 @@ def get_roi(image, roi_arr):
 
 
 
-def to_crop(frame, r, Channels):
+# def to_crop(frame, r, Channels):
+def to_crop(frame, Channels):
     ch = Channels
     #x,y represents the coordinates of the upper most corner of the rectangle
-    print('[ROI] (x , y, width, height) is', r)
+    # print('[ROI] (x , y, width, height) is', r)
 
     # Crop image
-    y1 = int(r[1])  # y
-    y2 = int(r[1] + r[3])  # y + height = height of cropped
-    x1 = int(r[0])  # x
-    x2 = int(r[0] + r[2])  # x + width = width of cropped
+    # y1 = int(r[1])  # y
+    # y2 = int(r[1] + r[3])  # y + height = height of cropped
+    # x1 = int(r[0])  # x
+    # x2 = int(r[0] + r[2])  # x + width = width of cropped
 
+    #hardcoding parameters
+    y1 = 5
+    y2 = 239 + 5
+    x1 = 14
+    x2 = 926 + 14
+
+    r = [14,5,926,239]
     print(x1, x2, y1, y2)
     imCrop = frame[y1:(y1 + H), x1:x2]
     print(frame.shape)
@@ -101,12 +106,12 @@ def npy_detect(npy_file, channels=25):
     video_frames = np.load(npy_file)
     sub_ch = [round(x * (r[2] / (channels))) for x in range(channels + 1)]
     y1 = int(r[1])  # y
-    y2 = int(r[1] + r[3])  # y + height = height of cropped
+    y2 = int(r[1] + 140)  # y + height = height of cropped
     x1 = int(r[0])  # x
     x2 = int(r[0] + r[2])  # x + width = width of cropped
 
     for frame in video_frames:
-        pic = frame[y1:(y1 + H), x1:x2]
+        pic = frame[y1:(y2), x1:x2]
         # crop = bgSubtract(mask,pic)
 
         mask = cv2.createBackgroundSubtractorMOG2(history=3,
@@ -160,23 +165,29 @@ def save_excel(sum_ch1):
     # savefile = asksaveasfilename(filetypes=(("Excel files", "*.xlsx"), ("All files", "*.*")))
     df.to_excel("testfile" + ".xlsx", index=False, sheet_name="Results")
 
+
 def main(test_npy=False):
     # Get ROI from frames
-    stream = cv2.cuda_Stream()
-    cap = FileVideoStream(file_name).start()
-    image = cap.read()
+    cap = cv2.VideoCapture(file_name)
+    ret, image = cap.read()
+    if not ret:
+        return "File error, please check if file is in directory"
+    # frame, roi_sel = get_roi(image, [])
     print('***** PROCESSING ROI for RUN 1 ***** File: %s' % file_name)
-    cap.stop()
+    # print('total number of ROI :%i\n' % len(roi_sel))
+
     '''
     Get crop size and draw lines
     '''
     print('***** PROCESSING RUN 1 ***** File: %s' % file_name)
     # # Read image start image
     # ret, frame = cap.read()
+    # roi_sel = []
+    cur = 0
+    # r = roi_sel[cur]
+    # prep_crop, x1, x2, y1, y2, sub_ch = to_crop(frame, r, Channels)
+    prep_crop, x1, x2, y1, y2, sub_ch = to_crop(image, Channels)
 
-    r = [0, 0, 934, 239]
-    prep_crop, x1, x2, y1, y2, sub_ch = to_crop(image, r, Channels)
-    #
     # cv2.namedWindow('Cropped Image', cv2.WINDOW_NORMAL)
     # cv2.imshow('Cropped Image', prep_crop)
     # cv2.waitKey(Delay)
@@ -184,13 +195,12 @@ def main(test_npy=False):
     '''
     Background Subtract
     '''
-    threshold_mat = cv2.cuda_GpuMat()
     count = 0
     spot_all = []
-    mask:cv2.cuda.createBackgroundSubtractorMOG2 = cv2.cuda.createBackgroundSubtractorMOG2(history=3,
+    # mask = cv2.createBackgroundSubtractorMOG2()
+    mask = cv2.createBackgroundSubtractorMOG2(history=3,
                                               varThreshold=100,
                                               detectShadows=False)
-    filter = cv2.cuda.createMedianFilter(cv2.CV_8UC1, blur_value)
     sum_ch1 = np.zeros(28)
     #
     # # metrics
@@ -203,29 +213,24 @@ def main(test_npy=False):
     bgsub = []
     thresh = []
     # run count
-    gpu_frames = []
-    gpu_read = cvs.video_queue(file_name,y1,H,x1,x2).start()
-    while gpu_read.more():
-        #load frames to memory
-        count += 1
-        frame = gpu_read.read()
-        # print(count)
-    gpu_read = cvs.video_queue(file_name, y1, H, x1, x2).start()
-    while gpu_read.more():
-        cycle_start = time.time()
-        frame = gpu_read.read()
-        augment_start = time.time()
-        # crop = bgSubtract(mask,pic)
-        blur = time.time()
-        filter.apply(frame)
-        blur_stop = time.time()
-        median_blur.append(blur_stop - blur)
+    while cap.isOpened():
 
+        count += 1
+        ret, pic = cap.read()
+        # print(count)
+        if not ret: break
+        cycle_start = time.clock()
+        augment_start = time.time()
+        pic = pic[y1:(y1 + H), x1:x2]
+        # crop = bgSubtract(mask,pic)
         bg = time.time()
-        aug_frame = mask.apply(frame, -1, stream)
+        crop = mask.apply(pic)
         bg_stop = time.time()
-        bgsub.append(bg_stop - bg)
-        crop = aug_frame.download()
+        bgsub.append(bg_stop-bg)
+        blur = time.time()
+        crop = cv2.medianBlur(crop, blur_value)
+        blur_stop = time.time()
+        median_blur.append(blur_stop-blur)
         threshh = time.time()
         crop = cv2.threshold(crop, 125, 255, cv2.THRESH_BINARY)[1]
         thresh_stop = time.time()
@@ -233,10 +238,11 @@ def main(test_npy=False):
         augment_end = time.time()
         blur_bgsub[count] = augment_end*1000.0 - augment_start*1000.0
 
+
+
         '''
         Contour Detection
         '''
-
         count_start = time.time()
         contours, hierarchy = cv2.findContours(crop, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         # list of all the coordinates (tuples) of each cell
@@ -246,6 +252,8 @@ def main(test_npy=False):
         for i in range(len(contours)):
             avg = np.mean(contours[i], axis=0)
             coord = (int(avg[0][0]), int(avg[0][1]))  ##Coord is (y,x)
+            if Show == 1:
+                cv2.circle(crop, coord, 10, (255, 0, 255), 1)
             ch_pos = int(math.floor((coord[0]) / sub_ch[1]))
             try:
                 sum_ch1[ch_pos] += 1
@@ -254,8 +262,15 @@ def main(test_npy=False):
         count_end = time.time()
         contour_detection[count] = count_end*1000.0 - count_start*1000.0
 
+        # show the counting
+        # if Show == 1 and count % Skip_frames == 0:
+        #         cv2.namedWindow('frame', cv2.WINDOW_NORMAL)
+        #         cv2.imshow('frame', crop)
+        #         # set the time delay to 1 ms so that the thread is freed up to do the processing we want to do.
+        #         cv2.waitKey(Delay)
+
         fps.update()
-        cycle_end = time.time()
+        cycle_end = time.clock()
 
     end = time.time()
     fps.stop()
@@ -264,7 +279,8 @@ def main(test_npy=False):
 
     # print("contour detection:",contour_detection)
     # print("augment:", blur_bgsub)
-    # cv2.destroyAllWindows()
+    cap.release()
+    cv2.destroyAllWindows()
     # bench_plot(blur_bgsub, contour_detection)
     print("Augmentation time:", np.mean(list(blur_bgsub.values())))
     print("Detection time:", np.mean(list(contour_detection.values())))
@@ -273,7 +289,7 @@ def main(test_npy=False):
     print("Median Blur subtract time:", np.mean(median_blur))
     print("Threshold subtract time:", np.mean(thresh))
     # set an array of sub channel dimension
-    print('[RESULTS] for RUN is ', sum_ch1)
+    print('[RESULTS] for RUN', (cur + 1), 'is ', sum_ch1)
     print('[ERROR] Count is: ', error)
 
     # stop the timer and display FPS information
@@ -282,6 +298,7 @@ def main(test_npy=False):
     print('[INFO] Each cycle time taken = %0.5fs' % (cycle_end - cycle_start))
     print('----------------------------------------------------------------------')
 
+    cap.release()
     cv2.destroyAllWindows()
 
     if test_npy:
