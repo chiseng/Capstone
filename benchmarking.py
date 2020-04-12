@@ -227,7 +227,8 @@ def main(test_npy=False):
         bg_stop = time.time()
         bgsub.append(bg_stop - bg)
         threshh = time.time()
-        crop = cv2.cuda.threshold(aug_frame, 125, 255, cv2.THRESH_BINARY,dst=threshold_mat,stream=stream)[1]
+        crop = aug_frame.download()
+        crop = cv2.threshold(crop, 125, 255, cv2.THRESH_BINARY)[1]
         thresh_stop = time.time()
         thresh.append(thresh_stop-threshh)
         augment_end = time.time()
@@ -236,7 +237,7 @@ def main(test_npy=False):
         '''
         Contour Detection
         '''
-        crop = crop.download()
+
         count_start = time.time()
         contours, hierarchy = cv2.findContours(crop, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         # list of all the coordinates (tuples) of each cell
