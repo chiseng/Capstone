@@ -5,10 +5,13 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 from imutils.video import FPS
+from imutils.video import FileVideoStream
 # import tkinter as tk
 # from tkinter.filedialog import askopenfilenames
 # from tkinter.filedialog import asksaveasfilename
 from pandas import DataFrame
+
+import cuda_video_stream as cvs
 
 ### ----- Parameters to Change ----- ###
 H = 140  # No. of pixels to select for height of Region Of Interest
@@ -157,17 +160,15 @@ def save_excel(sum_ch1):
     # savefile = asksaveasfilename(filetypes=(("Excel files", "*.xlsx"), ("All files", "*.*")))
     df.to_excel("testfile" + ".xlsx", index=False, sheet_name="Results")
 
-
 def main(test_npy=False):
     # Get ROI from frames
-    cap = cv2.VideoCapture(file_name)
-    ret, image = cap.read()
-    if not ret:
-        return "File error, please check if file is in directory"
+    stream = cv2.cuda_Stream()
+    cap = FileVideoStream(file_name).start()
+    image = cap.read()
     frame, roi_sel = get_roi(image, [])
     print('***** PROCESSING ROI for RUN 1 ***** File: %s' % file_name)
     print('total number of ROI :%i\n' % len(roi_sel))
-
+    cap.stop()
     '''
     Get crop size and draw lines
     '''
@@ -188,10 +189,10 @@ def main(test_npy=False):
     '''
     count = 0
     spot_all = []
-    # mask = cv2.createBackgroundSubtractorMOG2()
-    mask = cv2.createBackgroundSubtractorMOG2(history=3,
+    mask:cv2.cuda.createBackgroundSubtractorMOG2 = cv2.cuda.createBackgroundSubtractorMOG2(history=3,
                                               varThreshold=100,
                                               detectShadows=False)
+    filter = cv2.cuda.createMedianFilter(cv2.CV_8UC1, blur_value)
     sum_ch1 = np.zeros(28)
     #
     # # metrics
@@ -204,26 +205,31 @@ def main(test_npy=False):
     bgsub = []
     thresh = []
     # run count
-    while cap.isOpened():
-
+    gpu_frames = []
+    gpu_read = cvs.video_queue(file_name,y1,H,x1,x2).start()
+    while gpu_read.more():
+        #load frames to memory
         count += 1
-        ret, pic = cap.read()
         # print(count)
-        if not ret: break
+    gpu_read.stop()
+    gpu_read = cvs.video_queue(file_name, y1, H, x1, x2).start()
+    while gpu_read.more():
         cycle_start = time.clock()
         augment_start = time.time()
-        pic = pic[y1:(y1 + H), x1:x2]
+
         # crop = bgSubtract(mask,pic)
-        bg = time.time()
-        crop = mask.apply(pic)
-        bg_stop = time.time()
-        bgsub.append(bg_stop-bg)
         blur = time.time()
-        crop = cv2.medianBlur(crop, blur_value)
+        filter.apply(frame)
         blur_stop = time.time()
-        median_blur.append(blur_stop-blur)
+        median_blur.append(blur_stop - blur)
+
+        bg = time.time()
+        aug_frame = mask.apply(frame, -1, stream)
+        bg_stop = time.time()
+        bgsub.append(bg_stop - bg)
+
         threshh = time.time()
-        crop = cv2.threshold(crop, 125, 255, cv2.THRESH_BINARY)[1]
+        crop = cv2.threshold(aug_frame, 125, 255, cv2.THRESH_BINARY)[1]
         thresh_stop = time.time()
         thresh.append(thresh_stop-threshh)
         augment_end = time.time()

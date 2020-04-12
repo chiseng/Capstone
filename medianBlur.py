@@ -63,7 +63,7 @@ def cuda_median(frames, stream, filter):
     mask: cv2.cuda.createBackgroundSubtractorMOG2 = cv2.cuda.createBackgroundSubtractorMOG2(
         history=3, varThreshold=100, detectShadows=False
     )
-
+    filter = cv2.cuda.createMedianFilter(cv2.CV_8UC1, 3, partion=128)
     post_process = []
     # for frame in frames:
     #     processed = mask.apply(frame, -1, stream)
