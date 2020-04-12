@@ -226,8 +226,8 @@ def main(test_npy=False):
         aug_frame = mask.apply(frame, -1, stream)
         bg_stop = time.time()
         bgsub.append(bg_stop - bg)
-        threshh = time.time()
         crop = aug_frame.download()
+        threshh = time.time()
         crop = cv2.threshold(crop, 125, 255, cv2.THRESH_BINARY)[1]
         thresh_stop = time.time()
         thresh.append(thresh_stop-threshh)
