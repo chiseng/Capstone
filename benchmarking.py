@@ -227,7 +227,7 @@ def main(test_npy=False):
         thresh_stop = time.time()
         thresh.append(thresh_stop-threshh)
         augment_end = time.time()
-        blur_bgsub[count] = augment_end*1000.0 - augment_start*1000.0
+        blur_bgsub[count] = augment_end - augment_start
 
         '''
         Contour Detection
@@ -248,7 +248,7 @@ def main(test_npy=False):
             except:
                 error += 1
         count_end = time.time()
-        contour_detection[count] = count_end*1000.0 - count_start*1000.0
+        contour_detection[count] = count_end - count_start
 
         fps.update()
         cycle_end = time.time()
