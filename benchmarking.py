@@ -190,7 +190,7 @@ def main(test_npy=False):
     mask:cv2.cuda.createBackgroundSubtractorMOG2 = cv2.cuda.createBackgroundSubtractorMOG2(history=3,
                                               varThreshold=100,
                                               detectShadows=False)
-    filter = cv2.cuda.createBoxFilter(cv2.CV_8UC1,cv2.CV_8UC1, (blur_value,blur_value), borderMode=cv2.BORDER_CONSTANT)
+    filter = cv2.cuda.createGaussianFilter(cv2.CV_8UC1,cv2.CV_8UC1, (blur_value,blur_value), 0.5)
     sum_ch1 = np.zeros(28)
     #
     # # metrics
