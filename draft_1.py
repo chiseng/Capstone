@@ -4,7 +4,7 @@ import time
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
-from imutils.video import FPS
+from imutils.video import FPS, FileVideoStream
 # import tkinter as tk
 # from tkinter.filedialog import askopenfilenames
 # from tkinter.filedialog import asksaveasfilename
@@ -191,7 +191,7 @@ def main(test_npy=False):
     # cv2.namedWindow('Cropped Image', cv2.WINDOW_NORMAL)
     # cv2.imshow('Cropped Image', prep_crop)
     # cv2.waitKey(Delay)
-
+    cap.release()
     '''
     Background Subtract
     '''
@@ -213,12 +213,12 @@ def main(test_npy=False):
     bgsub = []
     thresh = []
     # run count
-    while cap.isOpened():
+    get_frames = FileVideoStream(file_name).start()
+    while get_frames.more() and get_frames.read() is not None:
 
         count += 1
-        ret, pic = cap.read()
+        pic = get_frames.read()
         # print(count)
-        if not ret: break
         cycle_start = time.clock()
         augment_start = time.time()
         pic = pic[y1:(y1 + H), x1:x2]
