@@ -190,7 +190,7 @@ def main(test_npy=False):
     mask:cv2.cuda.createBackgroundSubtractorMOG2 = cv2.cuda.createBackgroundSubtractorMOG2(history=3,
                                               varThreshold=100,
                                               detectShadows=False)
-    filter = cv2.cuda.createMedianFilter(cv2.CV_8UC1, blur_value)
+    filter = cv2.cuda.createBoxFilter(cv2.CV_8UC1,cv2.CV_8UC1, (blur_value,blur_value), borderMode=cv2.BORDER_CONSTANT)
     sum_ch1 = np.zeros(28)
     #
     # # metrics
@@ -204,27 +204,23 @@ def main(test_npy=False):
     thresh = []
     # run count
     gpu_frames = []
-    gpu_read = cvs.video_queue(file_name,y1,H,x1,x2).start()
-    while gpu_read.more():
-        #load frames to memory
-        count += 1
-        frame = gpu_read.read()
-        # print(count)
     gpu_read = cvs.video_queue(file_name, y1, H, x1, x2).start()
     while gpu_read.more():
         cycle_start = time.time()
         frame = gpu_read.read()
         augment_start = time.time()
         # crop = bgSubtract(mask,pic)
+        bg = time.time()
+        aug_frame = mask.apply(frame, 0.009, stream)
+        bg_stop = time.time()
+        bgsub.append(bg_stop - bg)
+
         blur = time.time()
-        filter.apply(frame)
+        filter.apply(aug_frame)
         blur_stop = time.time()
         median_blur.append(blur_stop - blur)
 
-        bg = time.time()
-        aug_frame = mask.apply(frame, -1, stream)
-        bg_stop = time.time()
-        bgsub.append(bg_stop - bg)
+
         crop = aug_frame.download()
         threshh = time.time()
         crop = cv2.threshold(crop, 125, 255, cv2.THRESH_BINARY)[1]
@@ -248,7 +244,7 @@ def main(test_npy=False):
             coord = (int(avg[0][0]), int(avg[0][1]))  ##Coord is (y,x)
             ch_pos = int(math.floor((coord[0]) / sub_ch[1]))
             try:
-                sum_ch1[ch_pos] += 1
+                sum_ch1[ch_pos] += float(1)
             except:
                 error += 1
         count_end = time.time()
@@ -273,7 +269,7 @@ def main(test_npy=False):
     print("Median Blur subtract time:", np.mean(median_blur))
     print("Threshold subtract time:", np.mean(thresh))
     # set an array of sub channel dimension
-    print('[RESULTS] for RUN is ', sum_ch1)
+    print(f'[RESULTS] for RUN is {sum_ch1}')
     print('[ERROR] Count is: ', error)
 
     # stop the timer and display FPS information

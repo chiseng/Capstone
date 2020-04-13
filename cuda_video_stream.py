@@ -55,7 +55,7 @@ class video_queue:
                 if not ret:
                     self.stopped = True
                     break
-                frame = frame[self.y1:(self.y1 + self.H), self.x1:self.x2]
+                # frame = frame[self.y1:(self.y1 + self.H), self.x1:self.x2]
                 frame = cv2.cuda_GpuMat(frame)
                 self.Queue.put(frame)
             else:

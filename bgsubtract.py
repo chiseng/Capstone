@@ -37,9 +37,9 @@ class Timer(object):
 
 def read_video(stream) -> np.ndarray:
     # assert pathlib.Path(path_video).exists()
-
+    count = 0
     buf = []
-    while stream.read() is not None:
+    while stream.more() and stream.read() is not None:
         frame = stream.read()
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         buf.append(frame)
@@ -67,9 +67,9 @@ def cuda_bgsub(get_frames) -> np.ndarray:
 
     post_process = []
 
-    while get_frames.more():
+    while get_frames.more() and get_frames.read() is not None:
         frame = get_frames.read()
-        processed = mask.apply(frame, -1, stream)
+        processed = mask.apply(frame,-1, stream)
         post_process.append(processed)
     return post_process
 
@@ -137,21 +137,22 @@ def write_frames(frames: np.ndarray, cv2=False) -> None:
 def main():
     filepath = "Raw Video Output 10x Inv-L.avi"
     #Load frames into memory
-    get_frames = cuda_video_stream.video_queue(filepath).start()
-    get_frames.stop()
-    get_frames = cuda_video_stream.video_queue(filepath).start()
-    stream = FileVideoStream(filepath).start()
-    stream.stop()
-    stream = FileVideoStream(filepath).start()
+    get_frames = cuda_video_stream.video_queue(filepath, 0, 0, 934, 239).start()
+    stream = FileVideoStream(filepath, queue_size=500).start()
 
     #Benchmark tests
     with Timer("OpenCV"):
         output1 = normal_bgsub(stream)
     with Timer("OpenCV with CUDA"):
         output2 = cuda_bgsub(get_frames)
+    print(len(output2))
+    print(len(output1))
     stream = FileVideoStream(filepath).start()
     with Timer("Numba test"):
        output = numba_test(stream)
+
+
+
 
 
 if __name__ == "__main__":
