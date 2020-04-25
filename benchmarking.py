@@ -210,7 +210,7 @@ class standard:
         linear = frame.reshape(width * height)
         vi = pyvips.Image.new_from_memory(linear.data, width, height, 1, "uchar")
         filtered = vi.median(3)
-        image = vips_to_array(filtered)
+        image = self.vips_to_array(filtered)
         return image
 
     def standard_run(self, x1: int, x2: int, y1: int, y2: int, sub_ch: list, pyvips=False):
@@ -232,8 +232,7 @@ class standard:
 
             blur = time.time()
             if pyvips:
-                img = self.vips_filter(crop)
-                crop = self.vips_to_array(img)
+                crop = self.vips_filter(crop)
             else:
                 cv2.medianBlur(crop, 3)
             blur_stop = time.time()
