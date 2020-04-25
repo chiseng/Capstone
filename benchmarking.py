@@ -205,7 +205,8 @@ class standard:
         )
 
     def vips_filter(self,frame):
-        height, width = frame.shapelinear = frame.reshape(width * height)
+        height, width = frame.shape
+        linear = frame.reshape(width * height)
         vi = pyvips.Image.new_from_memory(linear.data, width, height, 1, "uchar")
         filtered = vi.median(3)
         image = vips_to_array(filtered)
