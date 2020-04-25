@@ -4,3 +4,4 @@
 output_cuda/
 output_cv2/
 PIL_frames/
+*.png
