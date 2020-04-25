@@ -197,14 +197,14 @@ class standard:
         self.thresh = []
         self.count = 0
 
-    def vips_to_array(vi):
+    def vips_to_array(self,vi):
         return np.ndarray(
                 buffer=vi.write_to_memory(),
             dtype=format_to_dtype[vi.format],
             shape=[vi.height, vi.width, vi.bands],
         )
 
-    def vips_filter(frame):
+    def vips_filter(self,frame):
         height, width = frame.shapelinear = frame.reshape(width * height)
         vi = pyvips.Image.new_from_memory(linear.data, width, height, 1, "uchar")
         filtered = vi.median(3)
@@ -347,6 +347,9 @@ def main(cuda=False, pyvips=False):
 
 
 if __name__ == "__main__":
-    main(cuda=False)
+    print("CUDA Run")
     main(cuda=True)
+    print("Standard Run")
+    main(cuda=False)
+    print("Pyvips Run")
     main(pyvips=True)
