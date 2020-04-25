@@ -39,7 +39,7 @@ def read_video(stream) -> np.ndarray:
     # assert pathlib.Path(path_video).exists()
     count = 0
     buf = []
-    while stream.more() and stream.read() is not None:
+    while stream.read() is not None:
         frame = stream.read()
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         buf.append(frame)
@@ -48,13 +48,15 @@ def read_video(stream) -> np.ndarray:
 
 
 #
-def normal_bgsub(video_stream) -> np.ndarray:
+def cv2_bgsub(video_stream) -> np.ndarray:
 
     frames = read_video(video_stream)
     mask: cv2.createBackgroundSubtractorMOG2 = cv2.createBackgroundSubtractorMOG2(
         history=3, varThreshold=100, detectShadows=False
     )
     return np.stack([mask.apply(frame) for frame in frames])
+
+
 
 
 def cuda_bgsub(get_frames) -> np.ndarray:
@@ -66,8 +68,9 @@ def cuda_bgsub(get_frames) -> np.ndarray:
     )
 
     post_process = []
-
-    while get_frames.more() and get_frames.read() is not None:
+    count = 0
+    while get_frames.more():
+        count += 1
         frame = get_frames.read()
         processed = mask.apply(frame,-1, stream)
         post_process.append(processed)
@@ -125,9 +128,8 @@ def numba_test(video: str):
     # print(output)
     return output
 
-
-def write_frames(frames: np.ndarray, cv2=False) -> None:
-    root = pathlib.Path("output_norm")
+def write_frames(frames: np.ndarray, root_p, cv2=False) -> None:
+    root = pathlib.Path(root_p)
     if not root.exists():
         root.mkdir()
     for i, f in enumerate(frames):
@@ -140,16 +142,22 @@ def main():
     get_frames = cuda_video_stream.video_queue(filepath, 0, 0, 934, 239).start()
     stream = FileVideoStream(filepath, queue_size=500).start()
 
-    #Benchmark tests
+    # Benchmark tests
     with Timer("OpenCV"):
-        output1 = normal_bgsub(stream)
+        output1 = cv2_bgsub(stream)
     with Timer("OpenCV with CUDA"):
         output2 = cuda_bgsub(get_frames)
-    print(len(output2))
-    print(len(output1))
     stream = FileVideoStream(filepath).start()
     with Timer("Numba test"):
        output = numba_test(stream)
+
+    stream = FileVideoStream(filepath).start()
+    # with Timer("Pillow test"):
+    #     output = pillow_bgsub(stream)
+
+    # print(output)
+
+
 
 
 

@@ -4,9 +4,11 @@ from timeit import default_timer
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
+from PIL import Image, ImageFilter
 from imutils.video import FileVideoStream
 
-import cuda_video_stream
+
+# from pyvips import Image
 
 
 class Timer(object):
@@ -34,6 +36,16 @@ def read_video(stream) -> np.ndarray:
         buf.append(frame)
     return buf
 
+def pillow_bgsub(video_stream) -> np.ndarray:
+    frames = normal_bgsub(video_stream)
+    filtered = []
+    for frame in frames:
+        image = Image.fromarray(frame)
+        mask = ImageFilter.MedianFilter()
+        image.filter(mask)
+        filtered.append(image)
+
+    return filtered
 
 def normal_bgsub(stream) -> np.ndarray:
 
@@ -47,8 +59,8 @@ def norm_medianFilter(frames):
     return np.stack([cv2.medianBlur(frame, 3) for frame in frames])
 
 
-def write_frames(frames: list, cuda=False) -> None:
-    root = pathlib.Path("output_cv2")
+def write_frames(frames: list, path, cuda=False) -> None:
+    root = pathlib.Path(path)
     if not root.exists():
         root.mkdir()
     if cuda:
@@ -78,30 +90,46 @@ def cuda_median(frames, stream, filter: cv2.cuda_Filter, mask):
     return post_process
 
 def get_functions():
-    return cv2.cuda.createBoxFilter(cv2.CV_8UC1,cv2.CV_8UC1,(3,3),borderMode=cv2.BORDER_CONSTANT), cv2.cuda.createBackgroundSubtractorMOG2(
+    return cv2.cuda.createMedianFilter(cv2.CV_8UC1 ,3), cv2.cuda.createBackgroundSubtractorMOG2(
         history=3, varThreshold=100, detectShadows=False
     ), cv2.cuda_Stream()
+
+def pillow_bgsub(frames):
+    # video_stream = FileVideoStream(filepath).start()
+    median_filter = ImageFilter.MedianFilter(3)
+    image_arr = []
+
+    for frame in frames:
+        image = Image.fromarray(frame).filter(median_filter)
+        image_arr.append(image)
+    return image_arr
 
 def main():
     path_to_video = "Raw Video Output 10x Inv-L.avi"
     #init memory
 
     video_stream = FileVideoStream(path_to_video).start()
-    filter, mask, stream = get_functions()
-    #benchmark
-
+    # filter, mask, stream = get_functions()
+    # #benchmark
+    #
     with Timer("cv2"):
         frames = normal_bgsub(video_stream)
         filtered = norm_medianFilter(frames)
-    write_frames(filtered)
-    get_frames = cuda_video_stream.video_queue(path_to_video, 0, 0, 934, 239).start()
-    with Timer("cv2 with cuda median filter"):
-        ret_arr = cuda_median(get_frames, stream, filter, mask)
-    write_frames(ret_arr, cuda=True)
-
-    # with Timer("cv2 with cuda"):
-    #     ret_arr = cuda_median(get_frames, stream)
-    #     print(ret_arr)
-
+    write_frames(filtered, "output_cv2")
+    video_stream.stop()
+    # write_frames(filtered)
+    # get_frames = cuda_video_stream.video_queue(path_to_video, 0, 0, 934, 239).start()
+    # with Timer("cv2 with cuda median filter"):
+    #     ret_arr = cuda_median(get_frames, stream, filter, mask)
+    # write_frames(ret_arr, cuda=True)
+    #
+    # # with Timer("cv2 with cuda"):
+    # #     ret_arr = cuda_median(get_frames, stream)
+    # #     print(ret_arr)
+    video_stream = FileVideoStream(path_to_video).start()
+    with Timer("PIL test"):
+        frames = normal_bgsub(video_stream)
+        output = pillow_bgsub(frames)
+    write_frames(output, "PIL_frames")
 if __name__ == '__main__':
     main()

@@ -260,7 +260,7 @@ def main(test_npy=False):
             except:
                 error += 1
         count_end = time.time()
-        contour_detection[count] = count_end*1000.0 - count_start*1000.0
+        contour_detection[count] = count_end - count_start
 
         # show the counting
         # if Show == 1 and count % Skip_frames == 0:

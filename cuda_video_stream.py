@@ -17,7 +17,7 @@ class video_queue:
     def __init__(self,
                  file: str,
                  y1: int,
-                 H: int,
+                 y2: int,
                  x1: int,
                  x2: int,
                  queue_size: int = 500):
@@ -33,7 +33,7 @@ class video_queue:
         self.y1 = y1
         self.x1 = x1
         self.x2 = x2
-        self.H = H
+        self.y2 = y2
 
     def start(self):
         """
@@ -55,7 +55,7 @@ class video_queue:
                 if not ret:
                     self.stopped = True
                     break
-                # frame = frame[self.y1:(self.y1 + self.H), self.x1:self.x2]
+                frame = frame[self.y1:self.y2, self.x1:self.x2]
                 frame = cv2.cuda_GpuMat(frame)
                 self.Queue.put(frame)
             else:
