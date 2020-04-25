@@ -3,6 +3,7 @@ import time
 
 import cv2
 import numpy as np
+import pyvips
 from imutils.video import FPS
 from imutils.video import FileVideoStream
 # import tkinter as tk
