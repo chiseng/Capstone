@@ -231,7 +231,7 @@ class standard:
 
             blur = time.time()
             if pyvips:
-                img = self.vips_filter(frame)
+                img = self.vips_filter(crop)
                 crop = self.vips_to_array(img)
             else:
                 cv2.medianBlur(crop, 3)
