@@ -36,7 +36,6 @@ class Timer(object):
 
 
 def read_video(stream) -> np.ndarray:
-    # assert pathlib.Path(path_video).exists()
     count = 0
     buf = []
     while stream.read() is not None:
@@ -58,8 +57,7 @@ def cv2_bgsub(video_stream) -> np.ndarray:
 
 
 
-
-def cuda_bgsub(get_frames) -> np.ndarray:
+def cuda_bgsub(get_frames) -> list:
     stream = cv2.cuda_Stream()
 
     # cv2.createB
@@ -68,9 +66,7 @@ def cuda_bgsub(get_frames) -> np.ndarray:
     )
 
     post_process = []
-    count = 0
     while get_frames.more():
-        count += 1
         frame = get_frames.read()
         processed = mask.apply(frame,-1, stream)
         post_process.append(processed)
@@ -145,22 +141,12 @@ def main():
     # Benchmark tests
     with Timer("OpenCV"):
         output1 = cv2_bgsub(stream)
+    stream.stop()
     with Timer("OpenCV with CUDA"):
         output2 = cuda_bgsub(get_frames)
     stream = FileVideoStream(filepath).start()
     with Timer("Numba test"):
        output = numba_test(stream)
-
-    stream = FileVideoStream(filepath).start()
-    # with Timer("Pillow test"):
-    #     output = pillow_bgsub(stream)
-
-    # print(output)
-
-
-
-
-
 
 
 if __name__ == "__main__":

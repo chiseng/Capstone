@@ -760,6 +760,7 @@ def save_data():
         frame_mask = mask.apply(frame_count)
         frame_mask = cv2.medianBlur(frame_mask,blur_value)
         frame_mask = cv2.threshold(frame_mask, 125, 255, cv2.THRESH_BINARY)[1]
+
         end = time.time() * 1000
         augment_times.append(end-start)
         # find contours
@@ -795,7 +796,7 @@ def save_data():
                 for x in range(ch):
                     cv2.putText(frame_crop, str(x+1), ((roi_x+sub_ch[x]+10), (roi_y + int(roi_width*110/840) - 25)), font, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
                     cv2.line(frame_crop, ((roi_x+sub_ch[x]),roi_y), ((roi_x+sub_ch[x]), (roi_y+int(roi_width*110/840))), (200,200,100),2)
-                
+
             qformat = QImage.Format_Indexed8
             img = QImage(frame, int(x2), int(y2), int(x2), qformat)
             img = img.copy( rot_x, rot_y, rot_width, rot_height)    # copy(int x, int y, int width, int height)

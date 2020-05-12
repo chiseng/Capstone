@@ -1,40 +1,28 @@
 import math
+# import pyvips
+import pathlib
 import time
 
 import cv2
 import numpy as np
-import pyvips
 from imutils.video import FPS
 from imutils.video import FileVideoStream
-# import tkinter as tk
-# from tkinter.filedialog import askopenfilenames
-# from tkinter.filedialog import asksaveasfilename
 from pandas import DataFrame
 
 import cuda_video_stream as cvs
 
-### ----- Parameters to Change ----- ###
-H = 140  # No. of pixels to select for height of Region Of Interest
 blur_value = (
-    7  # value = 3,5 or 7 (ODD).median Blur value determines the accuracy of detection
+    7
 )
-Delay = 1000  # time value in miliseconds. (Fastest) Minimum = 1ms
-Show = 1  # To display the image. 1 = On, 0 = Off
-Skip_frames = 20  # number of frames to skip before Im showing
-file_name = "Raw Video Output 10x Inv-L.avi"  # Getting all open files location
-Channels = 25
+file_name = "Raw Video Output 10x Inv-L.avi"
+Channels = 34
+offset = 3 #We do not take the first 2 channels because only a minority will flow through and will be RBC
 line_color = (200, 100, 100)
-
-
-### ----- Parameters to Change ----- ###
 
 
 """
 We test with the one avi file to benchmark
 """
-
-
-# def crop(frame,roi):
 
 format_to_dtype = {
     "uchar": np.uint8,
@@ -62,26 +50,25 @@ def to_crop(frame, r, Channels):
     x2 = int(r[0] + r[2])  # x + width = width of cropped
 
     print(x1, x2, y1, y2)
-    imCrop = frame[y1 : (y1 + H), x1:x2]
+    imCrop = frame[y1 : (y2), x1:x2]
     print(frame.shape)
     # the array for sub-channels
     sub_ch = []
-
+    ch_length = r[2] / ch
     # draw lines on crop frame
-    for x in range(ch + 1):
+    for x in range(offset, ch + offset + 1):
         sub_ch_x = round(
-            x * (r[2] / (ch))
+            x * (r[2] / ch_length)
         )  # place where line will be drawn, proportional to width
         sub_ch.append(sub_ch_x)
     #     cv2.line(imCrop, (sub_ch[x], 0), (sub_ch[x], H), line_color, 1)
-    return x1, x2, y1, y2, sub_ch
+
+    return x1, x2, y1, y2, sub_ch, ch_length
 
 
 def save_excel(sum_ch1):
     total_sum = []
     total_sum.append(sum_ch1)
-
-    ###write dataframes and export to an Excel file
     check = 0
     title = []
     for j in range(len(total_sum)):
@@ -97,9 +84,7 @@ def save_excel(sum_ch1):
                 total_sum[k].append(0)
 
     TTotal_sum = list(map(list, zip(*total_sum)))
-    # print(TTotal_sum)
     df = DataFrame(data=TTotal_sum, columns=title)
-    # savefile = asksaveasfilename(filetypes=(("Excel files", "*.xlsx"), ("All files", "*.*")))
     df.to_excel("testfile" + ".xlsx", index=False, sheet_name="Results")
 
 
@@ -187,7 +172,7 @@ class CUDA:
 class standard:
     def __init__(self, filename):
         self.mask: cv2.createBackgroundSubtractorMOG2 = cv2.createBackgroundSubtractorMOG2(
-            history=3, varThreshold=100, detectShadows=False
+            history=3, varThreshold=160, detectShadows=False
         )
 
         self.sum_ch1 = np.zeros(28)
@@ -213,33 +198,51 @@ class standard:
         image = self.vips_to_array(filtered)
         return image
 
-    def standard_run(self, x1: int, x2: int, y1: int, y2: int, sub_ch: list, pyvips=False):
+    def standard_run(self, x1: int, x2: int, y1: int, y2: int, sub_ch: list, channel_len, pyvips=False):
         fps = FPS().start()
         start = time.time()
         cap = FileVideoStream(file_name).start()
+        count = 0
+        root = pathlib.Path("out_frames")
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
+        if not root.exists():
+            root.mkdir()
         while cap.more():
             cycle_start = time.time()
             frame = cap.read()
             if frame is None:
                 break
             frame = frame[y1:y2, x1:x2]
+
             augment_start = time.time()
             # crop = bgSubtract(mask,pic)
+
             bg = time.time()
             crop = self.mask.apply(frame)
+            # crop = cv2.Canny(crop, 150, 200)
+            # edges = canny(crop/255.)
+            # crop = img_as_ubyte(edges)
+            # cv2.imshow(f"frame{count}", crop)
+            # cv2.waitKey(500)
+            # cv2.destroyAllWindows()
+            # if count == 20:
+            #     cv2.imshow(f"{count}", crop)
+            #     cv2.waitKey(5000)
+            #     cv2.destroyAllWindows()
             bg_stop = time.time()
             self.bgsub.append(bg_stop - bg)
-
+            _, crop = cv2.threshold(crop, 150, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
             blur = time.time()
-            if pyvips:
-                crop = self.vips_filter(crop)
-            else:
-                cv2.medianBlur(crop, 3)
+            # if pyvips:
+            #     crop = self.vips_filter(crop)
+            # else:
+            crop = cv2.GaussianBlur(crop,(5,5), 0.7)
             blur_stop = time.time()
             self.median_blur.append(blur_stop - blur)
 
             threshh = time.time()
-            crop = cv2.threshold(crop, 125, 255, cv2.THRESH_BINARY)[1]
+
+            # crop = cv2.morphologyEx(crop, cv2.MORPH_OPEN, kernel)
             thresh_stop = time.time()
             self.thresh.append(thresh_stop - threshh)
             augment_end = time.time()
@@ -256,11 +259,17 @@ class standard:
             for i in range(len(contours)):
                 avg = np.mean(contours[i], axis=0)
                 coord = (int(avg[0][0]), int(avg[0][1]))  ##Coord is (y,x)
-                ch_pos = int(math.floor((coord[0]) / sub_ch[1]))
+                ch_pos = int(math.floor((coord[1]) / channel_len))
+                cv2.circle(crop, coord, 10, (255, 0, 255), 1)
+
                 try:
                     self.sum_ch1[ch_pos] += float(1)
                 except:
                     pass
+            cv2.imshow(f"{count}", crop)
+            cv2.waitKey(500)
+            cv2.destroyAllWindows()
+            count += 1
             count_end = time.time()
             self.contour_detection[self.count] = count_end - count_start
 
@@ -294,8 +303,8 @@ def main(cuda=False, pyvips=False):
     """
     print("***** PROCESSING RUN 1 ***** File: %s" % file_name)
 
-    r = [0, 0, 934, 239]
-    x1, x2, y1, y2, sub_ch = to_crop(image, r, Channels)
+    r = [56, 252, 805, 70]
+    x1, x2, y1, y2, sub_ch, channel_len = to_crop(image, r, Channels)
 
     """
     Background Subtract
@@ -312,7 +321,7 @@ def main(cuda=False, pyvips=False):
             contour_detection,
             fps,
         ) = run_cuda.cuda_run()
-    if pyvips:
+    elif pyvips:
         run_standard = standard(file_name)
         (
             blur_bgsub,
@@ -331,7 +340,7 @@ def main(cuda=False, pyvips=False):
             thresh,
             contour_detection,
             fps,
-        ) = run_standard.standard_run(x1, x2, y1, y2, sub_ch)
+        ) = run_standard.standard_run(x1, x2, y1, y2, sub_ch, channel_len)
 
     print("Augmentation time:", np.mean(list(blur_bgsub.values())))
     print("Detection time:", np.mean(list(contour_detection.values())))
@@ -341,16 +350,15 @@ def main(cuda=False, pyvips=False):
     print("Threshold time:", np.mean(thresh))
     # set an array of sub channel dimension
 
-    # stop the timer and display FPS information
     print("[INFO] elasped time: {:.2f}".format(fps.elapsed()))
     print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
     print("----------------------------------------------------------------------")
 
 
 if __name__ == "__main__":
-    print("CUDA Run")
-    main(cuda=True)
+    # print("CUDA Run")
+    # main(cuda=True)
     print("Standard Run")
     main(cuda=False)
-    print("Pyvips Run")
-    main(pyvips=True)
+    # print("Pyvips Run")
+    # main(pyvips=True)
