@@ -1,5 +1,5 @@
 import math
-# import pyvips
+import pyvips
 import pathlib
 import time
 
@@ -98,7 +98,7 @@ class CUDA:
         )
         self.stream = cv2.cuda_Stream()
         self.gpu_read = cvs.video_queue(file_name, y1, y2, x1, x2).start()
-        self.sum_ch1 = np.zeros(28)
+        self.sum_ch1 = np.zeros(Channels)
         self.blur_bgsub = {}
         self.contour_detection = {}
         self.median_blur = []
@@ -323,7 +323,7 @@ def main(cuda=False, pyvips=False):
             thresh,
             contour_detection,
             fps,
-        ) = run_standard.standard_run(x1, x2, y1, y2, sub_ch, pyvips=True)
+        ) = run_standard.standard_run(x1, x2, y1, y2, sub_ch, channel_len, pyvips=True)
     else:
         run_standard = standard(file_name)
         (
@@ -349,9 +349,9 @@ def main(cuda=False, pyvips=False):
 
 
 if __name__ == "__main__":
-    # print("CUDA Run")
-    # main(cuda=True)
+    print("CUDA Run")
+    main(cuda=True)
     print("Standard Run")
     main(cuda=False)
-    # print("Pyvips Run")
-    # main(pyvips=True)
+    print("Pyvips Run")
+    main(pyvips=True)
