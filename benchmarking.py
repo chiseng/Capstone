@@ -127,7 +127,7 @@ class CUDA:
 
             crop = aug_frame.download()
             threshh = time.time()
-            crop = cv2.threshold(crop, 125, 255, cv2.THRESH_BINARY)[1]
+            crop = cv2.threshold(crop, 125, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)[1]
             thresh_stop = time.time()
             self.thresh.append(thresh_stop - threshh)
             augment_end = time.time()
@@ -175,7 +175,7 @@ class standard:
             history=3, varThreshold=160, detectShadows=False
         )
 
-        self.sum_ch1 = np.zeros(28)
+        self.sum_ch1 = np.zeros(34)
         self.blur_bgsub = {}
         self.contour_detection = {}
         self.median_blur = []
@@ -194,7 +194,7 @@ class standard:
         height, width = frame.shape
         linear = frame.reshape(width * height)
         vi = pyvips.Image.new_from_memory(linear.data, width, height, 1, "uchar")
-        filtered = vi.median(3)
+        filtered = vi.gaussblur(0.7)
         image = self.vips_to_array(filtered)
         return image
 
@@ -204,7 +204,6 @@ class standard:
         cap = FileVideoStream(file_name).start()
         count = 0
         root = pathlib.Path("out_frames")
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
         if not root.exists():
             root.mkdir()
         while cap.more():
@@ -219,30 +218,25 @@ class standard:
 
             bg = time.time()
             crop = self.mask.apply(frame)
-            # crop = cv2.Canny(crop, 150, 200)
-            # edges = canny(crop/255.)
-            # crop = img_as_ubyte(edges)
-            # cv2.imshow(f"frame{count}", crop)
-            # cv2.waitKey(500)
-            # cv2.destroyAllWindows()
+
             # if count == 20:
             #     cv2.imshow(f"{count}", crop)
             #     cv2.waitKey(5000)
             #     cv2.destroyAllWindows()
+
             bg_stop = time.time()
             self.bgsub.append(bg_stop - bg)
-            _, crop = cv2.threshold(crop, 150, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
             blur = time.time()
-            # if pyvips:
-            #     crop = self.vips_filter(crop)
-            # else:
-            crop = cv2.GaussianBlur(crop,(5,5), 0.7)
+            if pyvips:
+                crop = self.vips_filter(crop)
+            else:
+                crop = cv2.GaussianBlur(crop, (5, 5), 0.7)
+
             blur_stop = time.time()
             self.median_blur.append(blur_stop - blur)
 
             threshh = time.time()
-
-            # crop = cv2.morphologyEx(crop, cv2.MORPH_OPEN, kernel)
+            _, crop = cv2.threshold(crop, 150, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
             thresh_stop = time.time()
             self.thresh.append(thresh_stop - threshh)
             augment_end = time.time()
@@ -258,17 +252,16 @@ class standard:
             # to find the coordinates of the cells
             for i in range(len(contours)):
                 avg = np.mean(contours[i], axis=0)
-                coord = (int(avg[0][0]), int(avg[0][1]))  ##Coord is (y,x)
-                ch_pos = int(math.floor((coord[1]) / channel_len))
-                cv2.circle(crop, coord, 10, (255, 0, 255), 1)
+                coord = (int(avg[0][0]), int(avg[0][1]))  #Coord is (x,y)
+                ch_pos = int(math.floor((coord[0]) / channel_len))
 
                 try:
                     self.sum_ch1[ch_pos] += float(1)
                 except:
                     pass
-   #         cv2.imshow(f"{count}", crop)
-    #        cv2.waitKey(500)
-     #       cv2.destroyAllWindows()
+            cv2.imshow(f"frame {count}", crop)
+            cv2.waitKey(500)
+            cv2.destroyAllWindows()
             count += 1
             count_end = time.time()
             self.contour_detection[self.count] = count_end - count_start
