@@ -259,9 +259,9 @@ class standard:
                     self.sum_ch1[ch_pos] += float(1)
                 except:
                     pass
-            cv2.imshow(f"frame {count}", crop)
-            cv2.waitKey(500)
-            cv2.destroyAllWindows()
+            # cv2.imshow(f"frame {count}", crop)
+            # cv2.waitKey(500)
+            # cv2.destroyAllWindows()
             count += 1
             count_end = time.time()
             self.contour_detection[self.count] = count_end - count_start
