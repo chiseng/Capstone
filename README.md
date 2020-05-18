@@ -1,2 +1,2 @@
 # Capstone
-Code and stuff
+Image processing code
