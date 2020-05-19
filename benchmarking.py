@@ -1,5 +1,5 @@
 import math
-import pyvips
+# import pyvips
 import pathlib
 import time
 
@@ -14,7 +14,7 @@ import cuda_video_stream as cvs
 blur_value = (
     7
 )
-file_name = "Raw Video Output 10x Inv-L.avi"
+file_name = "T-Cells Activated Donor A 12HR Inv-L-Pillars -35mbar 15fps 10-03-2020.avi"
 Channels = 34
 offset = 3 #We do not take the first 2 channels because only a minority will flow through and will be RBC
 line_color = (200, 100, 100)
@@ -172,7 +172,7 @@ class CUDA:
 class standard:
     def __init__(self, filename):
         self.mask: cv2.createBackgroundSubtractorMOG2 = cv2.createBackgroundSubtractorMOG2(
-            history=3, varThreshold=160, detectShadows=False
+            history=3, varThreshold=190, detectShadows=False
         )
 
         self.sum_ch1 = np.zeros(34)
@@ -211,18 +211,13 @@ class standard:
             frame = cap.read()
             if frame is None:
                 break
-            frame = frame[y1:y2, x1:x2]
 
+            frame = frame[y1:y2, x1:x2]
             augment_start = time.time()
             # crop = bgSubtract(mask,pic)
 
             bg = time.time()
             crop = self.mask.apply(frame)
-
-            # if count == 20:
-            #     cv2.imshow(f"{count}", crop)
-            #     cv2.waitKey(5000)
-            #     cv2.destroyAllWindows()
 
             bg_stop = time.time()
             self.bgsub.append(bg_stop - bg)
@@ -230,7 +225,7 @@ class standard:
             if pyvips:
                 crop = self.vips_filter(crop)
             else:
-                crop = cv2.GaussianBlur(crop, (5, 5), 0.7)
+                crop = cv2.GaussianBlur(crop, (7, 7), 3.0)
 
             blur_stop = time.time()
             self.median_blur.append(blur_stop - blur)
@@ -269,6 +264,7 @@ class standard:
             fps.update()
             cycle_end = time.time()
         print(self.count)
+        print(self.count)
         end = time.time()
         fps.stop()
         detect_benchmark = end - start
@@ -296,7 +292,7 @@ def main(cuda=False, pyvips=False):
     """
     print("***** PROCESSING RUN 1 ***** File: %s" % file_name)
 
-    r = [56, 252, 805, 70]
+    r = [16, 347, 1383, 104]
     x1, x2, y1, y2, sub_ch, channel_len = to_crop(image, r, Channels)
 
     """
@@ -349,9 +345,9 @@ def main(cuda=False, pyvips=False):
 
 
 if __name__ == "__main__":
-    print("CUDA Run")
-    main(cuda=True)
+    # print("CUDA Run")
+    # main(cuda=True)
     print("Standard Run")
     main(cuda=False)
-    print("Pyvips Run")
-    main(pyvips=True)
+    # print("Pyvips Run")
+    # main(pyvips=True)

@@ -5,4 +5,8 @@ output_cuda/
 output_cv2/
 PIL_frames/
 out_frames/
+*.npz
+*.npy
 *.png
+*.zip
+*.ipynb

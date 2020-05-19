@@ -1,7 +1,9 @@
 import pathlib
+import subprocess as sp
 import time
 
 import cv2
+import imageio
 import numpy as np
 from imutils.video import FileVideoStream
 
@@ -43,16 +45,38 @@ def read_video(path_video: str) -> np.ndarray:
 
 def stacked_frames(frames: np.ndarray) -> np.ndarray:
     model = cv2.createBackgroundSubtractorMOG2(history=3, varThreshold=100, detectShadows=False)
-    return np.stack([model.apply(f) for f in frames])
+    # return np.stack([model.apply(f) for f in frames])
+    return np.stack([f for f in frames])
 
-def write_video_avi(frames: np.ndarray, fps: int):
+def write_video_avi(frames, fps):
     out_file = "test_vid.avi"
-    out = cv2.VideoWriter(out_file, cv2.VideoWriter_fourcc('X','V','I','D'), fps, frameSize=(frames.shape[2], frames.shape[1]), isColor=False)
-    for i, f in enumerate(frames):
-        out.write((f))
+    out = cv2.VideoWriter(out_file, cv2.VideoWriter_fourcc(*'DIVX'), fps,
+                          frameSize=(frames.shape[2], frames.shape[1]))
+    for f in frames:
+        out.write(f)
     out.release()
 
+def imio(frames, fps):
+    writer: imageio.plugins.ffmpeg.FfmpegFormat.Writer = imageio.get_writer("test2.avi", fps=fps)
+    for f in frames:
+        writer.append_data(f)
 
+def ffmpeg_writer(frames):
+    ffmpeg_bin = r'C:\Users\Me\Documents\ffmpeg-20200513-b12b053-win64-static\bin\ffmpeg.exe'
+    command = [ffmpeg_bin,
+               '-y',  # (optional) overwrite output file if it exists
+               '-f', 'rawvideo',
+               '-vcodec', 'rawvideo',
+               '-s', f'{frames.shape[2]}x{frames.shape[1]}',  # size of one frame
+               '-pix_fmt', 'rgb24',
+               '-r', '24',  # frames per second
+               '-i', '-',  # The imput comes from a pipe
+               '-an',  # Tells FFMPEG not to expect any audio
+               '-vcodec', 'mpeg4',
+               'test_ff.avi']
+    proc = sp.Popen(command, stdin=sp.PIPE, stderr=sp.PIPE)
+    for f in frames:
+        proc.stdin.write(f.tostring())
 
 def main(path_video_in="Raw Video Output 10x Inv-L.avi", out_dir="output_frames"):
     v = cv2.VideoCapture(path_video_in)
@@ -61,12 +85,17 @@ def main(path_video_in="Raw Video Output 10x Inv-L.avi", out_dir="output_frames"
     video = read_video(path_video_in)
     output = stacked_frames(video)
     print("Frame conversion after background subtraction for demonstration")
-    with Timer("avi conversion",decimals=7):
+    with Timer("ffmpeg conversion",decimals=7):
+        ffmpeg_writer(output)
+    with Timer("avi conversion", decimals=7):
         write_video_avi(output, fps)
+    with Timer("imageio", decimals=7):
+        imio(output, fps)
     with Timer("NPY file save", decimals=7):
         np.save("video_frames", output)
     with Timer("NPY compressed", decimals=7):
-        np.savez_compressed("video_frames", output)
+        np.savez("video_frames",output)
+        # np.savez_compressed("video_frames", output)
 
 
 if __name__ == "__main__":
