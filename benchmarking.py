@@ -1,9 +1,11 @@
+import copy
 import math
 # import pyvips
 import pathlib
 import time
 
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 from imutils.video import FPS
 from imutils.video import FileVideoStream
@@ -14,7 +16,7 @@ import cuda_video_stream as cvs
 blur_value = (
     7
 )
-file_name = "T-Cells Activated Donor A 12HR Inv-L-Pillars -35mbar 15fps 10-03-2020.avi"
+file_name = "WBC285 inv-L-pillars -350mbar 150fps v3.4.avi"
 Channels = 34
 offset = 3 #We do not take the first 2 channels because only a minority will flow through and will be RBC
 line_color = (200, 100, 100)
@@ -198,20 +200,107 @@ class standard:
         image = self.vips_to_array(filtered)
         return image
 
+    def plot_fig(self):
+        sum_ch1 = np.load("run_results.npy")
+        channels = [i for i in range(len(sum_ch1))]
+        plt.bar(channels, sum_ch1)
+        plt.plot(sum_ch1, color='black')
+        plt.xlabel("Channel")
+        plt.ylabel("Cell Count")
+        plt.show()
+
+    def image_aug(self,frame):
+
+        frame = self.unsharp_mask(frame, sigma=2.0)  # increase sharpness
+        lab = cv2.cvtColor(frame, cv2.COLOR_RGB2LAB)
+        clahe = cv2.createCLAHE(clipLimit=1., tileGridSize=(5, 5))
+        l, a, b = cv2.split(lab)
+        l2 = clahe.apply(l)
+        lab = cv2.merge((l2, a, b))  # merge channels
+        frame = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+
+        # cv2.imshow("Sharpened", sharpened_frame)
+        # cv2.waitKey(1000)
+        # cv2.destroyAllWindows()
+
+        return frame
+
+    def unsharp_mask(self,image, kernel_size=(7, 7), sigma=1.0, amount=1.0, threshold=0):
+        """Return a sharpened version of the image, using an unsharp mask."""
+        blurred = cv2.GaussianBlur(image, kernel_size, sigma)
+        sharpened = float(amount + 1) * image - float(amount) * blurred
+        sharpened = np.maximum(sharpened, np.zeros(sharpened.shape))
+        sharpened = np.minimum(sharpened, 255 * np.ones(sharpened.shape))
+        sharpened = sharpened.round().astype(np.uint8)
+        if threshold > 0:
+            low_contrast_mask = np.absolute(image - blurred) < threshold
+            np.copyto(sharpened, image, where=low_contrast_mask)
+        return sharpened
+
+    def test_augmentation(self,image):
+        ret = cv2.GaussianBlur(image, (5, 5), 2)
+        # ret = cv2.bilateralFilter(image, 10, 150,150)
+        _, ret = cv2.threshold(ret, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        return ret
+
+    def rbc_channels(self,sum_ch1):
+        threshold = 0.001 * np.sum(sum_ch1)
+        mx = np.max(sum_ch1)
+        # mask = (sum_ch1 >= threshold)
+        return sum_ch1[:np.where(sum_ch1 == mx)[0][0] + 3]
+
+    def rbc_detection(self, frame, rbc_counting, mask, count) -> np.ndarray:
+        # mask = cv2.createBackgroundSubtractorMOG2(history=3, varThreshold=190, detectShadows=False)
+        roi = [84, 325, 1095, 160]
+        frame = frame[roi[1]:(roi[1] + roi[3]), roi[0]:(roi[0] + roi[2])]
+        Channels = 30
+        frame = self.image_aug(frame)
+
+        frame = mask.apply(frame)
+        frame = self.test_augmentation(frame)
+        # if count == 4:
+        #     long_imshow(frame)
+        # bg_sub_frame = mask.apply(framee)
+        # cv2.imshow("frame", frame)
+        # cv2.waitKey(1000)
+        # cv2.destroyAllWindows()
+        # ret_frame = test_augmentation(bg_sub_frame)
+
+        channel_len = roi[2] / Channels
+        contours, hierarchy = cv2.findContours(
+            frame, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
+        )
+        for i in range(len(contours)):
+            avg = np.mean(contours[i], axis=0)
+            coord = (int(avg[0][0]), int(avg[0][1]))  # Coord is (x,y)
+            ch_pos = int(math.floor((coord[0]) / channel_len))
+            # cv2.circle(frame, coord, 10, (255, 0, 255), 1)
+            # cv2.imshow(f"frame", frame)
+            # cv2.waitKey(500)
+            try:
+                rbc_counting[ch_pos] += float(1)
+            except:
+                print("Array error")
+                break
+        return rbc_counting
+
     def standard_run(self, x1: int, x2: int, y1: int, y2: int, sub_ch: list, channel_len, pyvips=False):
         fps = FPS().start()
-        start = time.time()
         cap = FileVideoStream(file_name).start()
         count = 0
+        rbc_counting = np.zeros(Channels)
         root = pathlib.Path("out_frames")
         if not root.exists():
             root.mkdir()
+        start = time.time()
         while cap.more():
             cycle_start = time.time()
             frame = cap.read()
             if frame is None:
                 break
-
+            if count < 500:
+                rbc_img = copy.deepcopy(frame)
+                rbc_counting = self.rbc_detection(rbc_img, rbc_counting, self.mask, count)
             frame = frame[y1:y2, x1:x2]
             augment_start = time.time()
             # crop = bgSubtract(mask,pic)
@@ -263,14 +352,20 @@ class standard:
 
             fps.update()
             cycle_end = time.time()
-        print(self.count)
-        print(self.count)
+        print(time.time()-start)
         end = time.time()
         fps.stop()
         detect_benchmark = end - start
+        rbc_roi = self.rbc_channels(rbc_counting)
+        wbc_roi = self.sum_ch1[len(rbc_roi):]
+
+        total_count = np.concatenate((rbc_roi, wbc_roi))
+        np.save("run_results", total_count)
+        print(f"RBC counts: {rbc_counting}")
+        print(f"[ROI] for RBC are channels {rbc_roi}")
+        print(f"[RESULTS] for RUN is {total_count}")
         print("Time taken for counting:", detect_benchmark)
         print("[INFO] Each cycle time taken = %0.5fs" % (cycle_end - cycle_start))
-        print(f"[RESULTS] for RUN is {self.sum_ch1}")
         return (
             self.blur_bgsub,
             self.median_blur,
@@ -279,6 +374,13 @@ class standard:
             self.contour_detection,
             fps,
         )
+    '''
+    RBC counts: [1.236e+03 1.768e+03 8.640e+02 8.000e+00 2.000e+00 1.000e+00 2.000e+00
+ 0.000e+00 1.000e+00 0.000e+00 0.000e+00 0.000e+00 0.000e+00 0.000e+00
+ 1.000e+00 0.000e+00 0.000e+00 0.000e+00 0.000e+00 0.000e+00 0.000e+00
+ 0.000e+00 0.000e+00 0.000e+00 0.000e+00 0.000e+00 0.000e+00 0.000e+00
+ 0.000e+00 0.000e+00 0.000e+00 0.000e+00 0.000e+00 0.000e+00]
+    '''
 
 
 def main(cuda=False, pyvips=False):
@@ -292,7 +394,7 @@ def main(cuda=False, pyvips=False):
     """
     print("***** PROCESSING RUN 1 ***** File: %s" % file_name)
 
-    r = [16, 347, 1383, 104]
+    r = [84, 357, 1238, 130]
     x1, x2, y1, y2, sub_ch, channel_len = to_crop(image, r, Channels)
 
     """
@@ -331,12 +433,12 @@ def main(cuda=False, pyvips=False):
             fps,
         ) = run_standard.standard_run(x1, x2, y1, y2, sub_ch, channel_len)
 
-    print("Augmentation time:", np.mean(list(blur_bgsub.values())))
-    print("Detection time:", np.mean(list(contour_detection.values())))
-
-    print("Background subtract time:", np.mean(bgsub))
-    print("Median Blur time:", np.mean(median_blur))
-    print("Threshold time:", np.mean(thresh))
+    # print("Augmentation time:", np.mean(list(blur_bgsub.values())))
+    # print("Detection time:", np.mean(list(contour_detection.values())))
+    #
+    # print("Background subtract time:", np.mean(bgsub))
+    # print("Median Blur time:", np.mean(median_blur))
+    # print("Threshold time:", np.mean(thresh))
     # set an array of sub channel dimension
 
     print("[INFO] elasped time: {:.2f}".format(fps.elapsed()))
