@@ -16,7 +16,8 @@ import cuda_video_stream as cvs
 blur_value = (
     7
 )
-file_name = "WBC285 inv-L-pillars -350mbar 150fps v3.4.avi"
+#file_name = "WBC285 inv-L-pillars -350mbar 150fps v3.4.avi"
+file_name = '/home/smart/WBC286 InvL-Pillars -35mbar 15fps 29-11-2019 v3.4.avi'
 Channels = 34
 offset = 3 #We do not take the first 2 channels because only a minority will flow through and will be RBC
 line_color = (200, 100, 100)
@@ -176,6 +177,9 @@ class standard:
         self.mask: cv2.createBackgroundSubtractorMOG2 = cv2.createBackgroundSubtractorMOG2(
             history=3, varThreshold=190, detectShadows=False
         )
+        self.mask2: cv2.createBackgroundSubtractorMOG2 = cv2.createBackgroundSubtractorMOG2(
+            history=3, varThreshold=100, detectShadows=False
+        )
 
         self.sum_ch1 = np.zeros(34)
         self.blur_bgsub = {}
@@ -253,7 +257,7 @@ class standard:
         # mask = cv2.createBackgroundSubtractorMOG2(history=3, varThreshold=190, detectShadows=False)
         roi = [84, 325, 1095, 160]
         frame = frame[roi[1]:(roi[1] + roi[3]), roi[0]:(roi[0] + roi[2])]
-        Channels = 30
+        Channels = 34
         frame = self.image_aug(frame)
 
         frame = mask.apply(frame)
@@ -298,13 +302,12 @@ class standard:
             frame = cap.read()
             if frame is None:
                 break
-            if count < 500:
+            if count < 200:
                 rbc_img = copy.deepcopy(frame)
-                rbc_counting = self.rbc_detection(rbc_img, rbc_counting, self.mask, count)
+                rbc_counting = self.rbc_detection(rbc_img, rbc_counting, self.mask2, count)
             frame = frame[y1:y2, x1:x2]
             augment_start = time.time()
             # crop = bgSubtract(mask,pic)
-
             bg = time.time()
             crop = self.mask.apply(frame)
 
