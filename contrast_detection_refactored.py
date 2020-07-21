@@ -49,6 +49,7 @@ def capture_video(exposure, gain, blur_value, fps, duration, avi=True):
     # cap = cv2.VideoCapture(1)
     # ret,frame = cap.read()
     # sel = cv2.selectROI(frame)
+
     cam.BeginAcquisition()
     roi_image = cam.GetNextImage()
     roi_image = np.array(roi_image.GetNDArray())
@@ -60,53 +61,6 @@ def capture_video(exposure, gain, blur_value, fps, duration, avi=True):
         % (roi_x, roi_y, roi_width, roi_height)
     )
     cam.EndAcquisition()
-    cam.BeginAcquisition()
-    out = cv2.VideoWriter(
-        "testavi.avi", 0x00000000, 25.0, (roi_width, roi_height), isColor=False
-    )
-
-    buf = np.empty(
-        (fps * duration, roi_height, roi_width), np.dtype("uint8")
-    )  # in the original image we need a dimension at index -1 as 3.
-    start_time = time.time()
-    fc = 0
-    while True:
-        try:
-            # Acquire images
-
-            image_primary = cam.GetNextImage()
-
-            # Pixel array
-            image_frame = np.array(image_primary.GetNDArray())
-            frame = np.array(image_primary.GetNDArray())
-            cropped = frame[roi_y : (roi_y + roi_height), roi_x : (roi_x + roi_width)]
-            buf[fc - 1] = cropped
-            fc += 1
-            # cv2.putText(image_frame, str(value), (100, 50), font, 1, (0, 255, 0), 1, cv2.LINE_AA)
-            cv2.imshow("livestream", image_frame)
-            cv2.waitKey(1)
-
-            if int(time.time() - start_time) == duration:
-                if avi:
-                    start = time.time()
-                    for frame in buf:
-                        out.write(frame)
-                    end = time.time()
-                    print("AVI benchmark:", end - start)
-                else:
-                    start = time.time()
-                    np.save("test_file", buf)
-                    end = time.time()
-                    print("npy benchmark:", end - start)
-                out.release()
-                end_time = time.time()
-                cam.EndAcquisition()
-                break
-        except Exception as e:
-            print(e)
-            print("Video ending...")
-            cv2.destroyAllWindows()
-            cam.EndAcquisition()
     return
 
 

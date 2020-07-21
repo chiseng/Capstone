@@ -10,8 +10,8 @@ from imutils.video import FileVideoStream
 from pandas import DataFrame
 
 blur_value = 7
-file_name = "WBC285 inv-L-pillars -350mbar 150fps v3.4.avi"
-# file_name = "/home/smart/WBC286 InvL-Pillars -35mbar 15fps 29-11-2019 v3.4.avi"
+#file_name = "WBC285 inv-L-pillars -350mbar 150fps v3.4.avi"
+file_name = "/home/smart/WBC286 InvL-Pillars -35mbar 15fps 29-11-2019 v3.4.avi"
 Channels = 34
 offset = 3  # We do not take the first 2 channels because only a minority will flow through and will be RBC
 line_color = (200, 100, 100)
@@ -308,8 +308,9 @@ class standard:
 
         total_count = np.concatenate((rbc_roi, wbc_roi))
         np.save(f"run_results_{self.cycle_count}", total_count)
-        print(f"RBC counts: {rbc_counting}")
+        print(f"[ROI] for WBC: {wbc_roi}")
         print(f"[ROI] for RBC: {rbc_roi}")
+        print(f"RBC counts: {rbc_counting}")
         print(f"[RESULTS] for RUN is {total_count}")
 
 
