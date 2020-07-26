@@ -1,5 +1,4 @@
 import math
-# import pyvips
 import time
 
 import cv2
@@ -9,37 +8,15 @@ from imutils.video import FPS
 from imutils.video import FileVideoStream
 from pandas import DataFrame
 
-blur_value = 7
-#file_name = "WBC285 inv-L-pillars -350mbar 150fps v3.4.avi"
-file_name = "/home/smart/WBC286 InvL-Pillars -35mbar 15fps 29-11-2019 v3.4.avi"
-Channels = 34
-offset = 3  # We do not take the first 2 channels because only a minority will flow through and will be RBC
-line_color = (200, 100, 100)
-
-
-"""
-We test with the one avi file to benchmark
-"""
-
-format_to_dtype = {
-    "uchar": np.uint8,
-    "char": np.int8,
-    "ushort": np.uint16,
-    "short": np.int16,
-    "uint": np.uint32,
-    "int": np.int32,
-    "float": np.float32,
-    "double": np.float64,
-    "complex": np.complex64,
-    "dpcomplex": np.complex128,
-}
+# file_name = "WBC285 inv-L-pillars -350mbar 150fps v3.4.avi"
 
 
 def to_crop(frame, r, Channels):
     ch = Channels
-    # x,y represents the coordinates of the upper most corner of the rectangle
+
     print("[ROI] (x , y, width, height) is", r)
 
+    offset = 3  # We do not take the first 2 channels because only a minority will flow through and will be RBC
     # Crop image
     y1 = int(r[1])  # y
     y2 = int(r[1] + r[3])  # y + height = height of cropped
@@ -58,7 +35,6 @@ def to_crop(frame, r, Channels):
             x * (r[2] / ch_length)
         )  # place where line will be drawn, proportional to width
         sub_ch.append(sub_ch_x)
-    #     cv2.line(imCrop, (sub_ch[x], 0), (sub_ch[x], H), line_color, 1)
 
     return x1, x2, y1, y2, sub_ch, ch_length
 
@@ -86,7 +62,7 @@ def save_excel(sum_ch1):
 
 
 class standard:
-    def __init__(self, filename):
+    def __init__(self, filename, Channels):
         self.mask: cv2.createBackgroundSubtractorMOG2 = cv2.createBackgroundSubtractorMOG2(
             history=3, varThreshold=190, detectShadows=False
         )
@@ -94,29 +70,10 @@ class standard:
             history=3, varThreshold=100, detectShadows=False
         )
         self.sum_ch1 = np.zeros(34)
-        # self.blur_bgsub = {}
-        # self.contour_detection = {}
-        # self.median_blur = []
-        # self.bgsub = []
-        # self.thresh = []
         self.frames_buffer = []
         self.rbc_counting = np.zeros(Channels)
         self.cycle_count = 0
-
-    def vips_to_array(self, vi):
-        return np.ndarray(
-            buffer=vi.write_to_memory(),
-            dtype=format_to_dtype[vi.format],
-            shape=[vi.height, vi.width, vi.bands],
-        )
-
-    def vips_filter(self, frame):
-        height, width = frame.shape
-        linear = frame.reshape(width * height)
-        vi = pyvips.Image.new_from_memory(linear.data, width, height, 1, "uchar")
-        filtered = vi.gaussblur(0.7)
-        image = self.vips_to_array(filtered)
-        return image
+        self.filename = filename
 
     def plot_fig(self):
         sum_ch1 = np.load("run_results.npy")
@@ -136,10 +93,6 @@ class standard:
         l2 = clahe.apply(l)
         lab = cv2.merge((l2, a, b))  # merge channels
         frame = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
-
-        # cv2.imshow("Sharpened", sharpened_frame)
-        # cv2.waitKey(1000)
-        # cv2.destroyAllWindows()
 
         return frame
 
@@ -178,13 +131,6 @@ class standard:
 
             frame = self.mask2.apply(frame)
             frame = self.test_augmentation(frame)
-            # if count == 4:
-            #     long_imshow(frame)
-            # bg_sub_frame = mask.apply(framee)
-            # cv2.imshow("frame", frame)
-            # cv2.waitKey(1000)
-            # cv2.destroyAllWindows()
-            # ret_frame = test_augmentation(bg_sub_frame)
 
             channel_len = roi[2] / Channels
             contours, hierarchy = cv2.findContours(
@@ -194,9 +140,7 @@ class standard:
                 avg = np.mean(contours[i], axis=0)
                 coord = (int(avg[0][0]), int(avg[0][1]))  # Coord is (x,y)
                 ch_pos = int(math.floor((coord[0]) / channel_len))
-                # cv2.circle(frame, coord, 10, (255, 0, 255), 1)
-                # cv2.imshow(f"frame", frame)
-                # cv2.waitKey(500)
+
                 try:
                     self.rbc_counting[ch_pos] += float(1)
                 except:
@@ -215,12 +159,9 @@ class standard:
         pyvips=False,
     ):
         fps = FPS().start()
-        cap = FileVideoStream(file_name).start()
+        cap = FileVideoStream(self.file_name).start()
         count = 0
 
-        # root = pathlib.Path("out_frames")
-        # if not root.exists():
-        #     root.mkdir()
         start = time.time()
         cycle_start = time.time()
         while cap.more():
@@ -235,32 +176,14 @@ class standard:
             # crop = bgSubtract(mask,pic)
             # bg = time.time()
             crop = self.mask.apply(frame)
-            # bg_stop = time.time()
-            # self.bgsub.append(bg_stop - bg)
-            # blur = time.time()
-            if pyvips:
-                crop = self.vips_filter(crop)
-            else:
-                crop = cv2.GaussianBlur(crop, (7, 7), 3.0)
+            crop = cv2.GaussianBlur(crop, (7, 7), 3.0)
 
-            # blur_stop = time.time()
-            # self.median_blur.append(blur_stop - blur)
-
-            # threshh = time.time()
             _, crop = cv2.threshold(crop, 150, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-            # thresh_stop = time.time()
-            # self.thresh.append(thresh_stop - threshh)
-            # augment_end = time.time()
-            # self.blur_bgsub[self.count] = augment_end - augment_start
-            # self.count += 1
 
-            # count_start = time.time()
             contours, hierarchy = cv2.findContours(
                 crop, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
             )
-            # list of all the coordinates (tuples) of each cell
-            # print(contours)
-            # to find the coordinates of the cells
+
             for i in range(len(contours)):
                 avg = np.mean(contours[i], axis=0)
                 coord = (int(avg[0][0]), int(avg[0][1]))  # Coord is (x,y)
@@ -270,12 +193,7 @@ class standard:
                     self.sum_ch1[ch_pos] += float(1)
                 except:
                     pass
-            # cv2.imshow(f"frame {count}", crop)
-            # cv2.waitKey(500)
-            # cv2.destroyAllWindows()
             count += 1
-            # count_end = time.time()
-            # self.contour_detection[self.count] = count_end - count_start
             fps.update()
         cycle_end = time.time()
         self.cycle_count += 1
@@ -284,15 +202,11 @@ class standard:
         detect_benchmark = end - start
         print("Number of frames processed: ", count)
         print("Time taken for WBC counting:", detect_benchmark)
-        print("[INFO] Each cycle time taken = %0.5fs" % ((cycle_end - cycle_start)/count))
-        return (
-            # self.blur_bgsub,
-            # self.median_blur,
-            # self.bgsub,
-            # self.thresh,
-            # self.contour_detection,
-            fps
+        print(
+            "[INFO] Each cycle time taken = %0.5fs"
+            % ((cycle_end - cycle_start) / count)
         )
+        return fps
 
     """
     RBC counts: [1.236e+03 1.768e+03 8.640e+02 8.000e+00 2.000e+00 1.000e+00 2.000e+00
@@ -316,15 +230,14 @@ class standard:
 
 def main(cuda=False, pyvips=False):
     # Get ROI from frames
+    file_name = "/home/smart/WBC286 InvL-Pillars -35mbar 15fps 29-11-2019 v3.4.avi"
     cap = FileVideoStream(file_name).start()
     image = cap.read()
     print("***** PROCESSING ROI for RUN 1 ***** File: %s" % file_name)
     cap.stop()
-    """
-    Get crop size and draw lines
-    """
     print("***** PROCESSING RUN 1 ***** File: %s" % file_name)
 
+    Channels = 34
     r = [84, 357, 1238, 130]
     x1, x2, y1, y2, sub_ch, channel_len = to_crop(image, r, Channels)
 
@@ -333,140 +246,17 @@ def main(cuda=False, pyvips=False):
     """
 
     # run count
-    run_standard = standard(file_name)
-    (
-        # blur_bgsub,
-        # median_blur,
-        # bgsub,
-        # thresh,
-        # contour_detection,
-        fps
-    ) = run_standard.standard_run(x1, x2, y1, y2, sub_ch, channel_len)
+    run_standard = standard(file_name, Channels)
+    (fps) = run_standard.standard_run(x1, x2, y1, y2, sub_ch, channel_len)
     print("[INFO] elasped time: {:.2f}".format(fps.elapsed()))
     print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
 
     rbc_counts = run_standard.rbc_detection()
     run_standard.process_results(rbc_counts)
 
-    # print("Augmentation time:", np.mean(list(blur_bgsub.values())))
-    # print("Detection time:", np.mean(list(contour_detection.values())))
-    #
-    # print("Background subtract time:", np.mean(bgsub))
-    # print("Median Blur time:", np.mean(median_blur))
-    # print("Threshold time:", np.mean(thresh))
-    # set an array of sub channel dimension
-
-
     print("----------------------------------------------------------------------")
 
 
 if __name__ == "__main__":
-    # print("CUDA Run")
-    # main(cuda=True)
     print("Standard Run")
-    main(cuda=False)
-    # print("Pyvips Run")
-    # main(pyvips=True)
-
-
-"""
-    if cuda:
-        run_cuda = CUDA(file_name, y1, y2, x1, x2, sub_ch)
-        (
-            blur_bgsub,
-            median_blur,
-            bgsub,
-            thresh,
-            contour_detection,
-            fps,
-        ) = run_cuda.cuda_run()
-    elif pyvips:
-        run_standard = standard(file_name)
-        (
-            blur_bgsub,
-            median_blur,
-            bgsub,
-            thresh,
-            contour_detection,
-            fps,
-        ) = run_standard.standard_run(x1, x2, y1, y2, sub_ch, channel_len, pyvips=True)
-class CUDA:
-    def __init__(self, file_name, y1, y2, x1, x2, sub_ch):
-        self.mask: cv2.cuda.createBackgroundSubtractorMOG2 = cv2.cuda.createBackgroundSubtractorMOG2(
-            history=3, varThreshold=100, detectShadows=False
-        )
-        self.filter = cv2.cuda.createGaussianFilter(
-            cv2.CV_8UC1, cv2.CV_8UC1, (blur_value, blur_value), 0.5
-        )
-        self.stream = cv2.cuda_Stream()
-        self.gpu_read = cvs.video_queue(file_name, y1, y2, x1, x2).start()
-        self.sum_ch1 = np.zeros(Channels)
-        self.blur_bgsub = {}
-        self.contour_detection = {}
-        self.median_blur = []
-        self.bgsub = []
-        self.sub_ch = sub_ch
-        self.thresh = []
-
-    def cuda_run(self):
-
-        count = 0
-        fps = FPS().start()
-        start = time.time()
-        while self.gpu_read.more():
-            cycle_start = time.time()
-            augment_start = time.time()
-            frame = self.gpu_read.read()
-            bg = time.time()
-            aug_frame = self.mask.apply(frame, 0.009, self.stream)
-            bg_stop = time.time()
-            self.bgsub.append(bg_stop - bg)
-
-            blur = time.time()
-            self.filter.apply(aug_frame)
-            blur_stop = time.time()
-            self.median_blur.append(blur_stop - blur)
-
-            crop = aug_frame.download()
-            threshh = time.time()
-            crop = cv2.threshold(crop, 125, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)[1]
-            thresh_stop = time.time()
-            self.thresh.append(thresh_stop - threshh)
-            augment_end = time.time()
-            self.blur_bgsub[count] = augment_end - augment_start
-            count += 1
-
-            count_start = time.time()
-            contours, hierarchy = cv2.findContours(
-                crop, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
-            )
-            # list of all the coordinates (tuples) of each cell
-            # print(contours)
-            # to find the coordinates of the cells
-            for i in range(len(contours)):
-                avg = np.mean(contours[i], axis=0)
-                coord = (int(avg[0][0]), int(avg[0][1]))  ##Coord is (y,x)
-                ch_pos = int(math.floor((coord[0]) / self.sub_ch[1]))
-                try:
-                    self.sum_ch1[ch_pos] += float(1)
-                except:
-                    pass
-            count_end = time.time()
-            self.contour_detection[count] = count_end - count_start
-
-            fps.update()
-            cycle_end = time.time()
-        print(count)
-        self.gpu_read.stop()
-        fps.stop()
-        print("[INFO] Each cycle time taken = %0.5fs" % (cycle_end - cycle_start))
-        print(f"[RESULTS] for RUN is {self.sum_ch1}")
-        return (
-            self.blur_bgsub,
-            self.median_blur,
-            self.bgsub,
-            self.thresh,
-            self.contour_detection,
-            fps,
-        )
-"""
+    main()
