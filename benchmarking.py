@@ -7,6 +7,7 @@ import numpy as np
 from imutils.video import FPS
 from imutils.video import FileVideoStream
 from pandas import DataFrame
+from file_conversion import *
 
 # file_name = "WBC285 inv-L-pillars -350mbar 150fps v3.4.avi"
 
@@ -74,6 +75,7 @@ class standard:
         self.rbc_counting = np.zeros(Channels)
         self.cycle_count = 0
         self.filename = filename
+        self.video_buffer = []
 
     def plot_fig(self):
         sum_ch1 = np.load("run_results.npy")
@@ -156,10 +158,10 @@ class standard:
         y2: int,
         sub_ch: list,
         channel_len,
-        pyvips=False,
+        demo=False
     ):
         fps = FPS().start()
-        cap = FileVideoStream(self.file_name).start()
+        cap = FileVideoStream(self.filename).start()
         count = 0
 
         start = time.time()
@@ -171,15 +173,16 @@ class standard:
 
             if count < 200:
                 self.frames_buffer.append(frame)
+            # print(frame.shape)
+            self.video_buffer.append(frame)
             frame = frame[y1:y2, x1:x2]
-            augment_start = time.time()
+
             # crop = bgSubtract(mask,pic)
             # bg = time.time()
             crop = self.mask.apply(frame)
             crop = cv2.GaussianBlur(crop, (7, 7), 3.0)
 
             _, crop = cv2.threshold(crop, 150, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
             contours, hierarchy = cv2.findContours(
                 crop, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
             )
@@ -189,12 +192,20 @@ class standard:
                 coord = (int(avg[0][0]), int(avg[0][1]))  # Coord is (x,y)
                 ch_pos = int(math.floor((coord[0]) / channel_len))
 
+                cv2.circle(crop, coord, 10, (255,255,255))
+
                 try:
                     self.sum_ch1[ch_pos] += float(1)
                 except:
                     pass
+
+            # if count == 50:
+            #     cv2.imshow("Test frame", crop)
+            #     cv2.waitKey(500)
+            #     cv2.destroyAllWindows()
             count += 1
             fps.update()
+
         cycle_end = time.time()
         self.cycle_count += 1
         end = time.time()
@@ -206,6 +217,11 @@ class standard:
             "[INFO] Each cycle time taken = %0.5fs"
             % ((cycle_end - cycle_start) / count)
         )
+
+        stacked = stacked_frames(np.asarray(self.video_buffer))
+        # print(stacked.shape) #(4501, 130, 1237)
+        # assert stacked.shape == (count, y2-y1, x2-x1)
+        ffmpeg_writer(np.asarray(self.video_buffer[0:200, :, :]), 150)
         return fps
 
     """
@@ -228,26 +244,25 @@ class standard:
         print(f"[RESULTS] for RUN is {total_count}")
 
 
-def main(cuda=False, pyvips=False):
+def main():
     # Get ROI from frames
-    file_name = "/home/smart/WBC286 InvL-Pillars -35mbar 15fps 29-11-2019 v3.4.avi"
+    # file_name = "/home/smart/WBC286 InvL-Pillars -35mbar 15fps 29-11-2019 v3.4.avi"
+    file_name = "C:/Users/Me/Desktop/capstone/WBC286 InvL-Pillars -350mbar 150fps 29-11-2019 v3.4.avi"
     cap = FileVideoStream(file_name).start()
     image = cap.read()
     print("***** PROCESSING ROI for RUN 1 ***** File: %s" % file_name)
     cap.stop()
     print("***** PROCESSING RUN 1 ***** File: %s" % file_name)
-
+    print("Frame size: ", image.shape)
     Channels = 34
-    r = [84, 357, 1238, 130]
+    #original size: [502,1402,3]
+    # r = [84, 357, 1238, 130]
+    r = [int(0.167 * image.shape[0]), int(0.25 * image.shape[1]), int(0.883 * image.shape[1]), 130]
     x1, x2, y1, y2, sub_ch, channel_len = to_crop(image, r, Channels)
-
-    """
-    Background Subtract
-    """
 
     # run count
     run_standard = standard(file_name, Channels)
-    (fps) = run_standard.standard_run(x1, x2, y1, y2, sub_ch, channel_len)
+    (fps) = run_standard.standard_run(x1, x2, y1, y2, sub_ch, channel_len, demo=False)
     print("[INFO] elasped time: {:.2f}".format(fps.elapsed()))
     print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
 
