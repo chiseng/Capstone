@@ -2,13 +2,13 @@ import math
 import time
 
 import cv2
+import lmdb
 import matplotlib.pyplot as plt
 import numpy as np
 from imutils.video import FPS
-from imutils.video import FileVideoStream
 from pandas import DataFrame
 from file_conversion import *
-import subprocess as sp
+
 
 
 # file_name = "WBC285 inv-L-pillars -350mbar 150fps v3.4.avi"
@@ -152,6 +152,22 @@ class standard:
                     break
         return self.rbc_counting
 
+    def write_ffmpeg(self, frames, fps):
+        ffmpeg_bin = r'C:\ffmpeg-20200729-cbb6ba2-win64-static\bin\ffmpeg.exe'
+        command = [ffmpeg_bin,
+               '-y',  # (optional) overwrite output file if it exists
+               '-f', 'rawvideo',
+               '-vcodec', 'rawvideo',
+               '-s', f'{frames.shape[1]}x{frames.shape[0]}',  # size of one frame
+               '-pix_fmt', 'rgb24',
+               '-r', str(fps),  # frames per second
+               '-i', '-',  # The imput comes from a pipe
+               '-an',  # Tells FFMPEG not to expect any audio
+               '-vcodec', 'mpeg4',
+               'test_ff.avi']
+        proc = sp.Popen(command, stdin=sp.PIPE)
+        return proc
+
     def standard_run(
         self,
         x1: int,
@@ -163,28 +179,33 @@ class standard:
         demo=False
     ):
 
-
-
-
         fps = FPS().start()
         cap = FileVideoStream(self.filename).start()
         count = 0
 
+
+        # env = lmdb.open('test1_lmdb', readonly=True)
         start = time.time()
         cycle_start = time.time()
         frame = cap.read()
+        proc = self.write_ffmpeg(frame, 25)
+        # self.video_buffer = np.zeros((4500, frame.shape[0], frame.shape[1], frame.shape[2]), dtype=np.uint8)
+        # map_size = 4530 * frame.nbytes
+        # env = lmdb.open(str("test1_lmdb"), map_size=map_size, writemap=True)
+
         while cap.more():
-            # print(count)
             frame = cap.read()
             if frame is None:
+                print("Break")
                 break
 
             if count < 200:
                 self.frames_buffer.append(frame)
+            # if count > 200:
+            #     self.video_buffer[count] = frame
+            # txn.put(str(count).encode("ascii"), frame)
+            proc.stdin.write(frame.tostring())
             frame = frame[y1:y2, x1:x2]
-
-            # crop = bgSubtract(mask,pic)
-            # bg = time.time()
             crop = self.mask.apply(frame)
             crop = cv2.GaussianBlur(crop, (7, 7), 3.0)
 
@@ -198,19 +219,22 @@ class standard:
                 coord = (int(avg[0][0]), int(avg[0][1]))  # Coord is (x,y)
                 ch_pos = int(math.floor((coord[0]) / channel_len))
 
-                cv2.circle(crop, coord, 10, (255,255,255))
+                # cv2.circle(crop, coord, 10, (255,255,255))
 
                 try:
                     self.sum_ch1[ch_pos] += float(1)
                 except:
                     pass
-            # self.video_buffer.append(crop)
-            # if count == 50:
-            #     cv2.imshow("Test frame", crop)
-            #     cv2.waitKey(500)
-            #     cv2.destroyAllWindows()
+
             count += 1
             fps.update()
+
+        # env.close()
+        # env.close()
+        proc.stdin.close()
+        proc.wait()
+        # if proc.returncode != 0: raise sp.CalledProcessError(proc.returncode, command)
+        # self.video_buffer[:200, :, :] = self.frames_buffer
         cycle_end = time.time()
         self.cycle_count += 1
         end = time.time()
@@ -228,7 +252,7 @@ class standard:
         # assert stacked.shape == (count, y2-y1, x2-x1)
         # stacked = np.asarray(self.video_buffer)
         # print(stacked)
-        # ffmpeg_writer(self.video_buffer, int(count/180))
+        # ffmpeg_writer(self.frames_buffer, count, int(count/180))
         return fps
 
     """

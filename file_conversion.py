@@ -4,6 +4,7 @@ import time
 
 import cv2
 import imageio
+import lmdb
 import numpy as np
 from imutils.video import FileVideoStream
 
@@ -65,7 +66,7 @@ def imio(frames, fps):
     for f in frames:
         writer.append_data(f)
 
-def ffmpeg_writer(frames, fps):
+def ffmpeg_writer(frames, count, fps):
     ffmpeg_bin = r'C:\ffmpeg-20200729-cbb6ba2-win64-static\bin\ffmpeg.exe'
     #ffmpeg_bin = '/usr/bin/ffmpeg'
     command = [ffmpeg_bin,
@@ -73,16 +74,17 @@ def ffmpeg_writer(frames, fps):
                '-f', 'rawvideo',
                '-vcodec', 'rawvideo',
                '-s', f'{frames[0].shape[1]}x{frames[0].shape[0]}',  # size of one frame
-               '-pix_fmt', 'gray8',
+               '-pix_fmt', 'rgb24',
                '-r', str(fps),  # frames per second
                '-i', '-',  # The imput comes from a pipe
                '-an',  # Tells FFMPEG not to expect any audio
                '-vcodec', 'mpeg4',
                'test_ff.avi']
     proc = sp.Popen(command, stdin=sp.PIPE)
-    count = 0
-    for f in frames:
-        proc.stdin.write(f.tostring())
+    env = lmdb.open('test1_lmdb', readonly=True)
+    with env.begin() as txn:
+        for idx in range(count + 1):
+            proc.stdin.write(txn.get(str(idx).encode("ascii")).tostring())
     proc.stdin.close()
     proc.wait()
     if proc.returncode != 0: raise sp.CalledProcessError(proc.returncode, command)
