@@ -8,6 +8,8 @@ from imutils.video import FPS
 from imutils.video import FileVideoStream
 from pandas import DataFrame
 from file_conversion import *
+import subprocess as sp
+
 
 # file_name = "WBC285 inv-L-pillars -350mbar 150fps v3.4.avi"
 
@@ -160,21 +162,25 @@ class standard:
         channel_len,
         demo=False
     ):
+
+
+
+
         fps = FPS().start()
         cap = FileVideoStream(self.filename).start()
         count = 0
 
         start = time.time()
         cycle_start = time.time()
+        frame = cap.read()
         while cap.more():
+            # print(count)
             frame = cap.read()
             if frame is None:
                 break
 
             if count < 200:
                 self.frames_buffer.append(frame)
-            # print(frame.shape)
-            self.video_buffer.append(frame)
             frame = frame[y1:y2, x1:x2]
 
             # crop = bgSubtract(mask,pic)
@@ -198,14 +204,13 @@ class standard:
                     self.sum_ch1[ch_pos] += float(1)
                 except:
                     pass
-
+            # self.video_buffer.append(crop)
             # if count == 50:
             #     cv2.imshow("Test frame", crop)
             #     cv2.waitKey(500)
             #     cv2.destroyAllWindows()
             count += 1
             fps.update()
-
         cycle_end = time.time()
         self.cycle_count += 1
         end = time.time()
@@ -218,10 +223,12 @@ class standard:
             % ((cycle_end - cycle_start) / count)
         )
 
-        stacked = stacked_frames(np.asarray(self.video_buffer))
+        # stacked = stacked_frames(np.asarray(self.video_buffer))
         # print(stacked.shape) #(4501, 130, 1237)
         # assert stacked.shape == (count, y2-y1, x2-x1)
-        ffmpeg_writer(np.asarray(self.video_buffer[0:200, :, :]), 150)
+        # stacked = np.asarray(self.video_buffer)
+        # print(stacked)
+        # ffmpeg_writer(self.video_buffer, int(count/180))
         return fps
 
     """

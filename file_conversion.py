@@ -55,7 +55,7 @@ def stacked_frames(frames: np.ndarray) -> np.ndarray:
 def write_video_avi(frames, fps):
     out_file = "test_vid.avi"
     out = cv2.VideoWriter(out_file, cv2.VideoWriter_fourcc(*'PIM1'), fps,
-                          (frames.shape[2], frames.shape[1]), False)
+                          (frames[0].shape[1], frames[0].shape[0]), False)
     for f in frames:
         out.write(f)
     out.release()
@@ -72,16 +72,21 @@ def ffmpeg_writer(frames, fps):
                '-y',  # (optional) overwrite output file if it exists
                '-f', 'rawvideo',
                '-vcodec', 'rawvideo',
-               '-s', f'{frames.shape[2]}x{frames.shape[1]}',  # size of one frame
-               '-pix_fmt', 'rgb24',
+               '-s', f'{frames[0].shape[1]}x{frames[0].shape[0]}',  # size of one frame
+               '-pix_fmt', 'gray8',
                '-r', str(fps),  # frames per second
                '-i', '-',  # The imput comes from a pipe
                '-an',  # Tells FFMPEG not to expect any audio
                '-vcodec', 'mpeg4',
                'test_ff.avi']
-    proc = sp.Popen(command, stdin=sp.PIPE, stderr=sp.PIPE)
+    proc = sp.Popen(command, stdin=sp.PIPE)
+    count = 0
     for f in frames:
         proc.stdin.write(f.tostring())
+    proc.stdin.close()
+    proc.wait()
+    if proc.returncode != 0: raise sp.CalledProcessError(proc.returncode, command)
+
 
 def main(path_video_in=r"C:\Users\Me\Desktop\capstone\WBC286 InvL-Pillars -350mbar 150fps 29-11-2019 v3.4.avi", out_dir="output_frames"):
     print("Converting...")
