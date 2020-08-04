@@ -4,7 +4,6 @@ import time
 
 import cv2
 import imageio
-import lmdb
 import numpy as np
 from imutils.video import FileVideoStream
 
