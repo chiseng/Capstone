@@ -1,4 +1,3 @@
-import csv
 import math
 import queue
 import time
@@ -43,56 +42,25 @@ def to_crop(frame, r, Channels):
 
 
 def save_excel(sum_ch1):
-    sum_ch1 = np.load("run_results_1.npy")
-    channels = 35  # preset channel size
+    total_sum = []
+    total_sum.append(sum_ch1)
+    check = 0
     title = []
-    total_sum = [item for item in sum_ch1]
-    for i in range(len(total_sum), channels):
-        total_sum.append(0)
+    for j in range(len(total_sum)):
+        if check < len(total_sum[j]):
+            check = len(total_sum[j])
+        title.append("Run 1")
 
+    index = np.arange(0, check, 1)
 
-    with open("test.csv", 'a', newline='') as csvfile:
-        spamwriter = csv.writer(csvfile)
-        spamwriter.writerow(total_sum)
+    for k in range(len(total_sum)):
+        if len(total_sum[k]) < check:
+            for l in range(len(total_sum[k]), check):
+                total_sum[k].append(0)
 
-class video_write(multiprocessing.Process):
-
-    def __init__(self, frames, task_queue, filename):
-        self.task_queue = task_queue
-        multiprocessing.Process.__init__(self)
-        ffmpeg_bin = '/usr/bin/ffmpeg'
-        command = [ffmpeg_bin,
-                '-hide_banner', '-loglevel', 'warning',
-               '-y',  # overwrite output file if it exists
-               '-f', 'rawvideo',
-               '-vcodec', 'rawvideo',
-               '-s', f'{frames.shape[1]}x{frames.shape[0]}',  # size of one frame
-               '-pix_fmt', 'gray',
-               '-r', '24',  # frames per second (Change this field according to the video specs)
-               '-i', '-',  # The imput comes from a pipe
-               '-an',  # Tells FFMPEG not to expect any audio
-               '-vcodec', 'mpeg4',
-               'test_ff.avi']
-        self.proc = sp.Popen(command, stdin=sp.PIPE)
-
-    def run(self):
-        count = 0
-        while True:
-            print(count)
-            try:
-                count += 1
-                task = self.task_queue.get(timeout=0.01) #account for any time delays for the item to be put in the queue
-            except queue.Empty:
-                print("Completed all tasks")
-                self.task_queue.task_done()
-                time.sleep(0.01) #ensures that the queue joins properly
-                break
-            self.proc.stdin.write(task.tostring())
-            self.task_queue.task_done()
-        self.proc.stdin.close()
-
-        print("returning...")
-        return
+    TTotal_sum = list(map(list, zip(*total_sum)))
+    df = DataFrame(data=TTotal_sum, columns=title)
+    df.to_excel("testfile" + ".xlsx", index=False, sheet_name="Results")
     
 
 class standard:
@@ -193,7 +161,6 @@ class standard:
         y2: int,
         sub_ch: list,
         channel_len,
-        demo=False
     ):
 
         fps = FPS().start()
@@ -205,22 +172,15 @@ class standard:
         cycle_start = time.time()
         frame = cap.read()
         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
-
-        video_writer = video_write(frame, self.queue, "test_run.avi")
-        self.queue.put(frame)
-        time.sleep(0.01) # to ensure that the item is in the queue and it doesn't exit unexpectedly
-        video_writer.start()
         while cap.more():
 #            print(count)
             frame = cap.read()
             if frame is None:
-                print("Break")
                 break
 
             if count < 200:
                 self.frames_buffer.append(frame)
             frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
-            self.queue.put(frame)
             frame = frame[y1:y2, x1:x2]
             crop = self.mask.apply(frame)
             crop = cv2.GaussianBlur(crop, (7, 7), 3.0)
@@ -244,7 +204,6 @@ class standard:
             count += 1
             fps.update()
         fps.stop()
-        self.queue.join() #waits for the process to finish running
         cycle_end = time.time()
         self.cycle_count += 1
         end = time.time()
@@ -271,6 +230,7 @@ class standard:
         wbc_roi = self.sum_ch1[len(rbc_roi) :]
 
         total_count = np.concatenate((rbc_roi, wbc_roi))
+        save_excel(total_count)
         np.save(f"run_results_{self.cycle_count}", total_count)
         print(f"[ROI] for WBC: {wbc_roi}")
         print(f"[ROI] for RBC: {rbc_roi}")
@@ -280,7 +240,7 @@ class standard:
 
 def main():
     # Get ROI from frames
-    file_name = "/home/smart/WBC286 InvL-Pillars -350mbar 150fps 29-11-2019 v3.4.avi"
+    file_name = "/home/smart/WBC286 InvL-Pillars -35mbar 15fps 29-11-2019 v3.4.avi"
     #file_name = "C:/Users/Me/Desktop/capstone/WBC286 InvL-Pillars -350mbar 150fps 29-11-2019 v3.4.avi"
     cap = FileVideoStream(file_name).start()
     image = cap.read()
@@ -296,7 +256,7 @@ def main():
 
     # run count
     run_standard = standard(file_name, Channels)
-    (fps) = run_standard.standard_run(x1, x2, y1, y2, sub_ch, channel_len, demo=False)
+    (fps) = run_standard.standard_run(x1, x2, y1, y2, sub_ch, channel_len)
     print("[INFO] elasped time: {:.2f}".format(fps.elapsed()))
     print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
 
