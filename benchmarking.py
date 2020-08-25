@@ -1,4 +1,3 @@
-import csv
 import math
 import queue
 import time
@@ -9,6 +8,7 @@ import numpy as np
 from imutils.video import FPS
 from pandas import DataFrame
 from file_conversion import *
+from pathlib import Path
 
 
 # file_name = "WBC285 inv-L-pillars -350mbar 150fps v3.4.avi"
@@ -43,44 +43,70 @@ def to_crop(frame, r, Channels):
 
 
 def save_excel(sum_ch1):
-    sum_ch1 = np.load("run_results_1.npy")
-    channels = 35  # preset channel size
+    total_sum = []
+    total_sum.append(sum_ch1)
+    check = 0
     title = []
-    total_sum = [item for item in sum_ch1]
-    for i in range(len(total_sum), channels):
-        total_sum.append(0)
+    for j in range(len(total_sum)):
+        if check < len(total_sum[j]):
+            check = len(total_sum[j])
+        title.append("Run 1")
 
+    index = np.arange(0, check, 1)
 
-    with open("test.csv", 'a', newline='') as csvfile:
-        spamwriter = csv.writer(csvfile)
-        spamwriter.writerow(total_sum)
+    for k in range(len(total_sum)):
+        if len(total_sum[k]) < check:
+            for l in range(len(total_sum[k]), check):
+                total_sum[k].append(0)
+
+    TTotal_sum = list(map(list, zip(*total_sum)))
+    df = DataFrame(data=TTotal_sum, columns=title)
+    df.to_excel("testfile" + ".xlsx", index=False, sheet_name="Results")
 
 class video_write(multiprocessing.Process):
 
     def __init__(self, frames, task_queue, filename):
         self.task_queue = task_queue
         multiprocessing.Process.__init__(self)
-        ffmpeg_bin = '/usr/bin/ffmpeg'
-        command = [ffmpeg_bin,
-                '-hide_banner', '-loglevel', 'warning',
-               '-y',  # overwrite output file if it exists
-               '-f', 'rawvideo',
-               '-vcodec', 'rawvideo',
-               '-s', f'{frames.shape[1]}x{frames.shape[0]}',  # size of one frame
-               '-pix_fmt', 'gray',
-               '-r', '24',  # frames per second (Change this field according to the video specs)
-               '-i', '-',  # The imput comes from a pipe
-               '-an',  # Tells FFMPEG not to expect any audio
-               '-vcodec', 'mpeg4',
-               'test_ff.avi']
+        # ffmpeg_bin = '/usr/bin/ffmpeg'
+        # command = [ffmpeg_bin,
+        #         '-hide_banner', '-loglevel', 'warning',
+        #        '-y',  # overwrite output file if it exists
+        #        '-f', 'rawvideo',
+        #        '-vcodec', 'rawvideo',
+        #        '-s', f'{frames.shape[1]}x{frames.shape[0]}',  # size of one frame
+        #        '-pix_fmt', 'gray',
+        #        '-r', '24',  # frames per second (Change this field according to the video specs)
+        #        '-i', '-',  # The imput comes from a pipe
+        #        '-an',  # Tells FFMPEG not to expect any audio
+        #        '-vcodec', 'mpeg4',
+        #        'test_ff.mp4']
+        gstreamer_bin = "/usr/bin/gst-launch-1.0"
+        command = [gstreamer_bin,
+                  'multifilesrc', 'location=/dev/stdin',
+                  'caps=image/png,framerate=24',
+                  "!", "nvv4l2h264enc",
+                  "!", "qtmux",
+                  "!", "h264parse",
+                  "!", "filesink",
+                  "location=testfile.mp4"
+                  ]
         self.proc = sp.Popen(command, stdin=sp.PIPE)
 
+    # def __init__(self, frames, task_queue, filename):
+    #     self.task_queue = task_queue
+    #     multiprocessing.Process.__init__(self)
+    #     fourcc =  cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
+    #     self.out = cv2.VideoWriter(str(Path("test_cv" + ".mp4")), fourcc, 25.0, (frames.shape[1], frames.shape[0]),
+    #                           isColor=False)
+
+
     def run(self):
-        count = 0
+        # count = 0
         while True:
-            print(count)
             try:
-                count += 1
+                # print(count)
+                # count += 1
                 task = self.task_queue.get(timeout=0.01) #account for any time delays for the item to be put in the queue
             except queue.Empty:
                 print("Completed all tasks")
@@ -88,9 +114,10 @@ class video_write(multiprocessing.Process):
                 time.sleep(0.01) #ensures that the queue joins properly
                 break
             self.proc.stdin.write(task.tostring())
+            # self.out.write(task)
             self.task_queue.task_done()
         self.proc.stdin.close()
-
+        # self.out.release()
         print("returning...")
         return
     
@@ -211,7 +238,6 @@ class standard:
         time.sleep(0.01) # to ensure that the item is in the queue and it doesn't exit unexpectedly
         video_writer.start()
         while cap.more():
-#            print(count)
             frame = cap.read()
             if frame is None:
                 print("Break")

@@ -1,3 +1,4 @@
+import csv
 import math
 import queue
 import time
@@ -8,6 +9,7 @@ import numpy as np
 from imutils.video import FPS
 from pandas import DataFrame
 from file_conversion import *
+from pathlib import *
 
 
 # file_name = "WBC285 inv-L-pillars -350mbar 150fps v3.4.avi"
@@ -42,25 +44,17 @@ def to_crop(frame, r, Channels):
 
 
 def save_excel(sum_ch1):
-    total_sum = []
-    total_sum.append(sum_ch1)
-    check = 0
+    sum_ch1 = np.load("run_results_1.npy")
+    channels = 35  # preset channel size
     title = []
-    for j in range(len(total_sum)):
-        if check < len(total_sum[j]):
-            check = len(total_sum[j])
-        title.append("Run 1")
+    total_sum = [item for item in sum_ch1]
+    for i in range(len(total_sum), channels):
+        total_sum.append(0)
 
-    index = np.arange(0, check, 1)
 
-    for k in range(len(total_sum)):
-        if len(total_sum[k]) < check:
-            for l in range(len(total_sum[k]), check):
-                total_sum[k].append(0)
-
-    TTotal_sum = list(map(list, zip(*total_sum)))
-    df = DataFrame(data=TTotal_sum, columns=title)
-    df.to_excel("testfile" + ".xlsx", index=False, sheet_name="Results")
+    with open("test.csv", 'a', newline='') as csvfile:
+        spamwriter = csv.writer(csvfile)
+        spamwriter.writerow(total_sum)
     
 
 class standard:
@@ -178,29 +172,32 @@ class standard:
             if frame is None:
                 break
 
-            if count < 200:
-                self.frames_buffer.append(frame)
+            # if count < 200:
+            #     self.frames_buffer.append(frame)
             frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
             frame = frame[y1:y2, x1:x2]
-            crop = self.mask.apply(frame)
-            crop = cv2.GaussianBlur(crop, (7, 7), 3.0)
-
-            _, crop = cv2.threshold(crop, 150, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-            contours, hierarchy = cv2.findContours(
-                crop, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
-            )
-
-            for i in range(len(contours)):
-                avg = np.mean(contours[i], axis=0)
-                coord = (int(avg[0][0]), int(avg[0][1]))  # Coord is (x,y)
-                ch_pos = int(math.floor((coord[0]) / channel_len))
-
-
-                try:
-                    self.sum_ch1[ch_pos] += float(1)
-                except:
-                    pass
-
+            if not Path("/home/smart/output_frames").is_dir():
+                Path.mkdir(Path("/home/smart/output_frames"))
+            cv2.imwrite("/home/smart/output_frames/img" + str(count) + ".png", frame)
+            # crop = self.mask.apply(frame)
+            # crop = cv2.GaussianBlur(crop, (7, 7), 3.0)
+            #
+            # _, crop = cv2.threshold(crop, 150, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            # contours, hierarchy = cv2.findContours(
+            #     crop, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
+            # )
+            #
+            # for i in range(len(contours)):
+            #     avg = np.mean(contours[i], axis=0)
+            #     coord = (int(avg[0][0]), int(avg[0][1]))  # Coord is (x,y)
+            #     ch_pos = int(math.floor((coord[0]) / channel_len))
+            #
+            #
+            #     try:
+            #         self.sum_ch1[ch_pos] += float(1)
+            #     except:
+            #         pass
+            #
             count += 1
             fps.update()
         fps.stop()
